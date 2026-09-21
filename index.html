@@ -389,7 +389,7 @@ function renderStudent(){
  if(ui.studentTab==="subjects")h+=studentSubjects(s);
  if(ui.studentTab==="voice")h+=studentVoiceEnhanced(s);
  if(ui.studentTab==="family")h+=studentFamily(s);
- if(ui.studentTab==="evidence")h+=studentEvidence(s);
+ if(ui.studentTab==="evidence")h+=studentEvidenceEnhanced(s);
  if(ui.studentTab==="reviews")h+=studentReviews(s);
  if(ui.studentTab==="passport")h+=studentPassport(s);
  return h
@@ -1130,14 +1130,14 @@ window.saveStorageConfig=function(){
  var s=state.integrations.storage;s.provider=val("ciStorageProvider");s.driveFolderId=val("ciDrive").trim();s.oneDrivePath=val("ciOne").trim();s.status=s.provider==="None"?"Not connected":"Configured";localStorage.setItem(STORAGE,JSON.stringify(state));render();toast("Evidence storage configuration saved")
 }
 window.testStorageConnection=async function(){
- try{await callProtectedFunction("evidence-storage",{action:"health",provider:state.integrations.storage.provider});state.integrations.storage.status="Connected";localStorage.setItem(STORAGE,JSON.stringify(state));render();toast("Evidence storage endpoint verified")}catch(e){toast("Evidence storage backend is not configured yet")}
+ try{await callProtectedFunction("evidence-storage",{action:"health",provider:state.integrations.storage.provider,schoolId:state.integrations.supabase.schoolId});state.integrations.storage.status="Connected";localStorage.setItem(STORAGE,JSON.stringify(state));render();toast("Evidence storage endpoint verified")}catch(e){toast("Evidence storage backend is not configured yet")}
 }
 window.saveMisConfig=function(){
  var m=state.integrations.mis;m.provider=val("ciMisProvider");m.backendUrl=val("ciMisUrl").trim();m.status=m.provider==="None"?"Not connected":"Configured";localStorage.setItem(STORAGE,JSON.stringify(state));render();toast("MIS configuration saved")
 }
 window.runMisSync=async function(){
  try{
-  var data=await callProtectedFunction("mis-sync",{provider:state.integrations.mis.provider,action:"sync"});
+  var data=await callProtectedFunction("mis-sync",{provider:state.integrations.mis.provider,action:"sync",schoolId:state.integrations.supabase.schoolId});
   state.integrations.mis.status="Connected";state.integrations.mis.lastSync=new Date().toISOString();
   if(data&&Array.isArray(data.students))applyMisStudents(data.students);
   localStorage.setItem(STORAGE,JSON.stringify(state));render();toast("MIS sync completed")
@@ -1159,6 +1159,36 @@ function renderIntegrations(){
  h+='<div class="card"><div class="section-title"><h3>How school login works</h3></div><ol class="small"><li>Google and/or Microsoft provider is enabled in Supabase Auth.</li><li>Staff authenticate with their school account.</li><li>Row-level security checks their school membership and role.</li><li>All authorised staff in the same school share the central EAL dataset.</li></ol><div class="notice">A school administrator must add initial staff memberships in the database before they can access shared data.</div></div></div>';
  h+='<div class="grid two" style="margin-top:14px"><div class="card"><div class="section-title"><h3>Drive / OneDrive evidence storage</h3>'+integrationBadge(st.status)+'</div><div class="form-grid"><div class="field"><label>Provider</label><select id="ciStorageProvider">'+["None","Google Drive","OneDrive"].map(function(v){return '<option '+(st.provider===v?"selected":"")+'>'+v+'</option>'}).join("")+'</select></div><div class="field"><label>Google Drive folder ID</label><input id="ciDrive" value="'+esc(st.driveFolderId||"")+'"></div><div class="field full"><label>OneDrive base folder/path</label><input id="ciOne" value="'+esc(st.oneDrivePath||"")+'"></div></div><div class="actions"><button class="btn primary" onclick="saveStorageConfig()">Save</button><button class="btn" onclick="testStorageConnection()">Test server function</button></div><p class="small muted">Actual pupil documents are uploaded by an authenticated server/Edge Function so provider secrets and refresh tokens are not exposed to the browser.</p></div>';
  h+='<div class="card"><div class="section-title"><h3>MIS sync</h3>'+integrationBadge(m.status)+'</div><div class="form-grid"><div class="field"><label>Provider</label><select id="ciMisProvider">'+["None","SIMS","Arbor","Bromcom","iSAMS"].map(function(v){return '<option '+(m.provider===v?"selected":"")+'>'+v+'</option>'}).join("")+'</select></div><div class="field full"><label>Optional provider/API base URL</label><input id="ciMisUrl" value="'+esc(m.backendUrl||"")+'"></div></div><div class="actions"><button class="btn primary" onclick="saveMisConfig()">Save</button><button class="btn" onclick="runMisSync()">Run sync</button></div><p class="small muted">Sync contract: external pupil ID, name, preferred name, DOB, year, form, admission date, first language and attendance. Provider credentials remain server-side.</p><p class="small muted">Last MIS sync: '+(m.lastSync?new Date(m.lastSync).toLocaleString("en-GB"):"Never")+'</p></div></div>';
+ return h
+}
+
+
+window.openEvidenceUpload=function(id){
+ var s=studentById(id);if(!s)return;
+ var st=(state.integrations||{}).storage||{},db=(state.integrations||{}).supabase||{};
+ if(db.status!=="Connected")return toast("Sign in to the central database first");
+ if(st.provider==="None")return toast("Configure Google Drive or OneDrive in Integration Centre first");
+ document.getElementById("fileInput").accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt,.csv";
+ document.getElementById("fileInput").onchange=function(){
+  var file=this.files&&this.files[0];if(!file)return;
+  if(file.size>8*1024*1024)return toast("File must be 8 MB or smaller");
+  var r=new FileReader();
+  r.onload=async function(){
+   try{
+    var base64=String(r.result).split(",")[1]||"";
+    var result=await callProtectedFunction("evidence-storage",{action:"upload",provider:st.provider,schoolId:db.schoolId,studentId:s.id,fileName:file.name,mimeType:file.type||"application/octet-stream",contentBase64:base64,driveFolderId:st.driveFolderId||"",oneDrivePath:st.oneDrivePath||""});
+    s.evidence=s.evidence||[];s.evidence.push({id:uid("ev"),date:today(),type:"Uploaded document",title:file.name,location:(result.providerFile&&result.providerFile.url)||st.provider,note:"Uploaded to "+st.provider,providerFileId:(result.providerFile&&result.providerFile.id)||""});
+    save("Uploaded evidence file for "+s.name);render();toast("Evidence uploaded to "+st.provider)
+   }catch(e){toast("Evidence upload failed")}
+  };
+  r.readAsDataURL(file)
+ };
+ document.getElementById("fileInput").click()
+}
+function studentEvidenceEnhanced(s){
+ var h=studentEvidence(s);
+ var st=(state.integrations||{}).storage||{},db=(state.integrations||{}).supabase||{};
+ h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Secure evidence upload</h3>'+(roleCanEdit()?'<button class="btn primary" onclick="openEvidenceUpload(\''+s.id+'\')">Upload file</button>':"")+'</div><p class="small muted">Central login: '+esc(db.status||"Not connected")+' · Storage: '+esc(st.provider||"None")+' ('+esc(st.status||"Not connected")+')</p><p class="small muted">Files are sent to the configured server-side Google Drive or OneDrive adapter. Provider secrets are not exposed to this page.</p></div>';
  return h
 }
 
