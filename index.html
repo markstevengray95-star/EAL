@@ -973,6 +973,33 @@ function studentVoiceEnhanced(s){
  return h+'</div>'
 }
 
+
+function sessionMinutesForStudent(id){
+ return (state.interventionSessions||[]).filter(function(x){return x.studentId===id&&x.attended}).reduce(function(n,x){return n+(Number(x.minutes)||0)},0)
+}
+function renderSessions(){
+ var rows=(state.interventionSessions||[]).slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date))});
+ var attended=rows.filter(function(x){return x.attended}).length,total=rows.length,mins=rows.filter(function(x){return x.attended}).reduce(function(n,x){return n+(Number(x.minutes)||0)},0);
+ var h=pageHead("Intervention Session Attendance","Track whether planned EAL support actually happened, for how long and with what focus",roleCanEdit()?'<button class="btn primary" onclick="openInterventionSession()">+ Log session</button>':"");
+ h+='<div class="grid three"><div class="card kpi"><small>Sessions logged</small><strong>'+total+'</strong><span>All intervention sessions</span></div><div class="card kpi"><small>Attendance rate</small><strong>'+(total?Math.round(attended/total*100):0)+'%</strong><span>Sessions attended</span></div><div class="card kpi"><small>Support delivered</small><strong>'+mins+'</strong><span>Total attended minutes</span></div></div>';
+ h+='<div class="table-wrap"><table><thead><tr><th>Date</th><th>Student</th><th>Intervention</th><th>Focus</th><th>Minutes</th><th>Attendance</th><th>Staff</th><th>Note</th></tr></thead><tbody>'+rows.map(function(x){var s=studentById(x.studentId);return '<tr><td>'+dateText(x.date)+'</td><td>'+esc(s?s.name:"Archived/unknown")+'</td><td>'+esc(x.interventionName||"EAL support")+'</td><td>'+esc(x.focus||"")+'</td><td>'+esc(x.minutes||"—")+'</td><td>'+badge(x.attended?"Attended":"Missed",x.attended?"ok":"warn")+'</td><td>'+esc(x.staff||"")+'</td><td>'+esc(x.note||"")+'</td></tr>'}).join("")+'</tbody></table></div>';
+ return h
+}
+window.openInterventionSession=function(studentId){
+ var selected=studentId||((currentStudents()[0]||{}).id||"");
+ modal("Log intervention session",'<div class="form-grid"><div class="field full"><label>Student</label><select id="sesStudent">'+studentOptions(selected)+'</select></div><div class="field"><label>Date</label><input id="sesDate" type="date" value="'+today()+'"></div><div class="field"><label>Intervention / provision</label><input id="sesName" value="EAL support"></div><div class="field"><label>Focus</label><input id="sesFocus"></div><div class="field"><label>Minutes</label><input id="sesMinutes" type="number" min="0" value="25"></div><div class="field"><label>Staff</label><input id="sesStaff" value="EAL Team"></div><div class="field"><label><input type="checkbox" id="sesAttended" checked> Student attended</label></div><div class="field full"><label>Brief note / evidence</label><textarea id="sesNote"></textarea></div></div>',"Save session",function(){var s=studentById(val("sesStudent"));if(!s)return;state.interventionSessions.push({id:uid("ses"),studentId:s.id,date:val("sesDate"),interventionName:val("sesName"),focus:val("sesFocus"),minutes:Number(val("sesMinutes"))||0,staff:val("sesStaff"),attended:document.getElementById("sesAttended").checked,note:val("sesNote")});save("Logged intervention session for "+s.name);closeModal();render();toast("Session logged")})
+}
+function renderSupportPlan(){
+ var days=["Monday","Tuesday","Wednesday","Thursday","Friday"],rows=(state.supportTimetable||[]).slice().sort(function(a,b){return days.indexOf(a.day)-days.indexOf(b.day)||String(a.start).localeCompare(String(b.start))});
+ var h=pageHead("EAL Support Timetable","Plan weekly support, withdrawal, staffing and lesson clashes",roleCanEdit()?'<button class="btn primary" onclick="openSupportSlot()">+ Add support slot</button>':"");
+ h+='<div class="grid five">'+days.map(function(day){var list=rows.filter(function(x){return x.day===day});return '<div class="card"><h3>'+day+'</h3>'+(list.length?list.map(function(x){var s=studentById(x.studentId);return '<div class="priority"><div><b>'+esc(x.start+"–"+x.end)+'</b><span>'+esc(s?s.name:"Unknown")+' · '+esc(x.type||"EAL support")+'<br>'+esc(x.staff||"")+(x.missedLesson?" · misses "+esc(x.missedLesson):"")+'</span></div></div>'}).join(""):'<div class="empty">No support</div>')+'</div>'}).join("")+'</div>';
+ h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Weekly support totals</h3></div><div class="table-wrap"><table><thead><tr><th>Student</th><th>Planned weekly minutes</th><th>Delivered intervention minutes</th><th>Clashes / withdrawal</th></tr></thead><tbody>'+currentStudents().map(function(s){var slots=rows.filter(function(x){return x.studentId===s.id}),planned=slots.reduce(function(n,x){return n+(Number(x.minutes)||0)},0),clashes=slots.filter(function(x){return !!x.missedLesson}).map(function(x){return x.day+" "+x.missedLesson}).join(", ");return '<tr><td>'+esc(s.name)+'</td><td>'+planned+'</td><td>'+sessionMinutesForStudent(s.id)+'</td><td>'+esc(clashes||"None recorded")+'</td></tr>'}).join("")+'</tbody></table></div></div>';
+ return h
+}
+window.openSupportSlot=function(){
+ modal("Add weekly support slot",'<div class="form-grid"><div class="field full"><label>Student</label><select id="spStudent">'+studentOptions()+'</select></div><div class="field"><label>Day</label><select id="spDay">'+["Monday","Tuesday","Wednesday","Thursday","Friday"].map(function(x){return "<option>"+x+"</option>"}).join("")+'</select></div><div class="field"><label>Start</label><input id="spStart" type="time" value="09:00"></div><div class="field"><label>End</label><input id="spEnd" type="time" value="09:25"></div><div class="field"><label>Minutes</label><input id="spMinutes" type="number" value="25"></div><div class="field"><label>Support type</label><input id="spType" value="EAL support"></div><div class="field"><label>Staff</label><input id="spStaff" value="EAL Team"></div><div class="field"><label>Lesson missed / clash</label><input id="spMissed"></div><div class="field full"><label>Room / note</label><input id="spNote"></div></div>',"Add support slot",function(){var s=studentById(val("spStudent"));if(!s)return;state.supportTimetable.push({id:uid("slot"),studentId:s.id,day:val("spDay"),start:val("spStart"),end:val("spEnd"),minutes:Number(val("spMinutes"))||0,type:val("spType"),staff:val("spStaff"),missedLesson:val("spMissed"),note:val("spNote")});save("Added weekly support slot for "+s.name);closeModal();render();toast("Support slot added")})
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
@@ -990,6 +1017,8 @@ function render(){
  else if(ui.view==="calendar")html=renderCalendar();
  else if(ui.view==="tasks")html=renderTasks();
  else if(ui.view==="impact")html=renderImpactEnhanced();
+ else if(ui.view==="sessions")html=renderSessions();
+ else if(ui.view==="supportplan")html=renderSupportPlan();
  else if(ui.view==="ealtest")html=renderEalTestPro();
  else if(ui.view==="cohorts")html=renderCohortsEnhanced();
  else if(ui.view==="reports")html=renderReportsEnhanced();
