@@ -22,3 +22,5 @@ Open `index.html` in a browser or deploy this repository as a static site. No bu
 The first version stores data in the browser's local storage so it works immediately without external setup. This is suitable for demonstration and prototyping. Before using real pupil data, connect the app to a school-approved authenticated backend and complete your school's data-protection/security review.
 
 All demo pupils are fictional.
+
+Deployment refresh: GitHub Pages enabled.
