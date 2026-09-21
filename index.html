@@ -79,7 +79,7 @@ dialog{width:min(720px,94vw);border:0;border-radius:16px;padding:0;box-shadow:0 
 </div>
 <dialog id="modal"><div class="modal-head"><h3 id="modalTitle">Record</h3><button class="btn" onclick="closeModal()">✕</button></div><div class="modal-body" id="modalBody"></div><div class="modal-foot" id="modalFoot"></div></dialog>
 <div class="toast" id="toast"></div>
-<button id="mobileQuick" class="mobile-quick" onclick="openObservation()" aria-label="Quick observation">＋</button>
+<button id="mobileQuick" class="mobile-quick" onclick="openMobileQuickMenu()" aria-label="Quick entry">＋</button>
 <input type="file" id="fileInput" hidden>
 <script>
 (function(){
@@ -371,11 +371,11 @@ function renderStudent(){
  var tabs=[["overview","Overview"],["eal","EAL Progress"],["reading","Reading"],["learning","Learning Tools"],["targets","Targets"],["interventions","Interventions"],["observations","Observations"],["subjects","Subject Progress"],["voice","Student Voice"],["family","Family & Context"],["evidence","Evidence"],["reviews","Reviews"],["passport","Passport"]];
  h+='<div class="tabs">'+tabs.map(function(t){return '<button class="tab '+(ui.studentTab===t[0]?"active":"")+'" onclick="ui.studentTab=\''+t[0]+'\';render()">'+t[1]+'</button>'}).join("")+'</div>';
  if(ui.studentTab==="overview")h+=studentOverview(s);
- if(ui.studentTab==="eal")h+=studentEal(s);
+ if(ui.studentTab==="eal")h+=studentEalEnhanced(s);
  if(ui.studentTab==="reading")h+=studentReading(s);
  if(ui.studentTab==="learning")h+=studentLearning(s);
  if(ui.studentTab==="targets")h+=studentTargets(s);
- if(ui.studentTab==="interventions")h+=studentInterventions(s);
+ if(ui.studentTab==="interventions")h+=studentInterventionsEnhanced(s);
  if(ui.studentTab==="observations")h+=studentObservations(s);
  if(ui.studentTab==="subjects")h+=studentSubjects(s);
  if(ui.studentTab==="voice")h+=studentVoice(s);
@@ -748,11 +748,118 @@ function renderEalTestEnhanced(){
  return h
 }
 
+
+function domainDescriptor(n){
+ n=Number(n)||1;
+ return [
+  "Substantial language support needed in this context",
+  "Emerging; responds with modelling, visuals or prompts",
+  "Developing independence in familiar classroom language",
+  "Mostly independent, including much academic language",
+  "Consistently independent and flexible in this context"
+ ][Math.max(0,Math.min(4,n-1))]
+}
+function onboardingPct(s){
+ var a=s.newArrival||{},keys=["languageBackground","previousSchooling","baseline","readingAge","parentContact","strategies","firstReview"];
+ return Math.round(keys.filter(function(k){return !!a[k]}).length/keys.length*100)
+}
+function renderStudentsEnhanced(){
+ var years=["All"].concat(Array.from(new Set(currentStudents().map(function(s){return s.year}))).sort());
+ var langs=["All"].concat(Array.from(new Set(currentStudents().map(function(s){return s.firstLanguage}).filter(Boolean))).sort());
+ var act=roleCanEdit()?'<button class="btn primary" onclick="openAddStudent()">+ Add student</button><button class="btn" onclick="printEalRegister()">Print register</button><button class="btn" onclick="exportCsv()">Export CSV</button>':'<button class="btn" onclick="printEalRegister()">Print register</button>';
+ var h=pageHead("Students","Search, filter and manage the whole-school EAL register",act);
+ h+='<div class="filters"><input placeholder="Search pupil, language, staff, strategy or need…" value="'+esc(ui.studentFilter||"")+'" oninput="ui.studentFilter=this.value;render()"><select onchange="ui.yearFilter=this.value;render()">'+years.map(function(y){return '<option '+((ui.yearFilter||"All")===y?"selected":"")+'>'+esc(y)+'</option>'}).join("")+'</select><select onchange="ui.levelFilter=this.value;render()"><option>All</option>'+levels.map(function(l){return '<option '+((ui.levelFilter||"All")===l?"selected":"")+'>'+esc(l)+'</option>'}).join("")+'</select><select onchange="ui.languageFilter=this.value;render()">'+langs.map(function(l){return '<option '+((ui.languageFilter||"All")===l?"selected":"")+'>'+esc(l)+'</option>'}).join("")+'</select><select onchange="ui.actionFilter=this.value;render()"><option>All actions</option><option>Review due</option><option>Reading due</option><option>Intervention active</option><option>New arrival incomplete</option></select></div>';
+ var q=(ui.studentFilter||"").toLowerCase(),list=currentStudents().filter(function(s){
+  var hay=[s.name,s.firstLanguage,s.form,s.year,s.keyStaff,s.development,(s.strategies||[]).join(" "),suggestedNextAction(s)].join(" ").toLowerCase();
+  if(q&&hay.indexOf(q)<0)return false;
+  if((ui.yearFilter||"All")!=="All"&&s.year!==ui.yearFilter)return false;
+  if((ui.levelFilter||"All")!=="All"&&levelFromSkills(s.proficiency)!==ui.levelFilter)return false;
+  if((ui.languageFilter||"All")!=="All"&&s.firstLanguage!==ui.languageFilter)return false;
+  var af=ui.actionFilter||"All actions";
+  if(af==="Review due"&&!reviewDue(s))return false;
+  if(af==="Reading due"&&!readingDue(s))return false;
+  if(af==="Intervention active"&&!(s.interventions||[]).some(function(i){return i.status!=="Completed"}))return false;
+  if(af==="New arrival incomplete"&&onboardingPct(s)>=100)return false;
+  return true
+ });
+ h+='<div class="table-wrap"><table><thead><tr><th>Student</th><th>Year/Form</th><th>First language</th><th>Stage</th><th>Reading gap</th><th>Onboarding</th><th>Next action</th><th>Review</th></tr></thead><tbody>'+list.map(function(s){var g=readingGap(s,readingLatest(s));return '<tr><td><span class="link" onclick="openStudent(\''+s.id+'\')">'+esc(s.name)+'</span></td><td>'+esc(s.year+" · "+s.form)+'</td><td>'+(ui.privacy&&ui.role==="Teacher"?"Hidden":esc(s.firstLanguage||"—"))+'</td><td>'+badge(levelFromSkills(s.proficiency),"brand")+'</td><td>'+(g==null?"—":badge((g>0?"+":"")+g+" mo",g<-24?"danger":g<-12?"warn":"ok"))+'</td><td>'+badge(onboardingPct(s)+"%",onboardingPct(s)===100?"ok":"warn")+'</td><td>'+esc(suggestedNextAction(s))+'</td><td>'+dateText(s.nextReview)+'</td></tr>'}).join("")+'</tbody></table></div>';
+ return h
+}
+window.printEalRegister=function(){
+ var ss=currentStudents().slice().sort(function(a,b){return String(a.year+a.name).localeCompare(String(b.year+b.name))}),w=window.open("","_blank");if(!w)return toast("Allow pop-ups to print the register");
+ var rows=ss.map(function(s){var r=readingLatest(s);return '<tr><td>'+esc(s.name)+'</td><td>'+esc(s.year)+'</td><td>'+esc(s.form)+'</td><td>'+esc(s.firstLanguage||"")+'</td><td>'+esc(levelFromSkills(s.proficiency))+'</td><td>'+(r?ageText(r.readingMonths):"—")+'</td><td>'+esc(s.keyStaff||"")+'</td><td>'+dateText(s.nextReview)+'</td></tr>'}).join("");
+ w.document.write('<html><head><title>EAL Register</title><style>body{font-family:Arial,sans-serif;margin:28px;color:#222}h1{color:#275d4b}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border-bottom:1px solid #ddd;text-align:left;padding:7px}th{background:#f1f5f3}</style></head><body><h1>'+esc(state.settings.schoolName)+' - EAL Register</h1><p>'+esc(state.settings.academicYear)+' · '+dateText(today())+'</p><table><thead><tr><th>Student</th><th>Year</th><th>Form</th><th>First language</th><th>EAL stage</th><th>Reading age</th><th>Key staff</th><th>Next review</th></tr></thead><tbody>'+rows+'</tbody></table><script>window.onload=function(){window.print()}<\/script></body></html>');w.document.close()
+}
+window.openInterventionReview=function(studentId,interventionId){
+ var s=studentById(studentId);if(!s)return;var i=(s.interventions||[]).find(function(x){return x.id===interventionId});if(!i)return;
+ modal("Review intervention",'<div class="form-grid"><div class="field full"><label>Intervention</label><input disabled value="'+esc(i.name)+'"></div><div class="field"><label>Review date</label><input id="irDate" type="date" value="'+esc(i.reviewDate||today())+'"></div><div class="field"><label>Status</label><select id="irStatus"><option '+(i.status==="Active"?"selected":"")+'>Active</option><option '+(i.status==="Completed"?"selected":"")+'>Completed</option><option '+(i.status==="Paused"?"selected":"")+'>Paused</option></select></div><div class="field"><label>Impact rating</label><select id="irImpact">'+["Not reviewed","Limited evidence of impact","Some positive impact","Strong positive impact"].map(function(x){return '<option '+((i.impactRating||"Not reviewed")===x?"selected":"")+'>'+x+'</option>'}).join("")+'</select></div><div class="field full"><label>Outcome evidence</label><textarea id="irOutcome">'+esc(i.outcome||"")+'</textarea></div><div class="field full"><label>Next step</label><textarea id="irNext">'+esc(i.nextStep||"")+'</textarea></div></div>',"Save review",function(){i.reviewDate=val("irDate");i.status=val("irStatus");i.impactRating=val("irImpact");i.outcome=val("irOutcome");i.nextStep=val("irNext");i.lastReviewed=today();save("Reviewed intervention "+i.name+" for "+s.name);closeModal();render();toast("Intervention review saved")})
+}
+function renderImpactEnhanced(){
+ var rows=[];currentStudents().forEach(function(s){(s.interventions||[]).forEach(function(i){rows.push({s:s,i:i,p:readingProgress(s)})})});
+ var strong=rows.filter(function(x){return x.i.impactRating==="Strong positive impact"}).length,reviewed=rows.filter(function(x){return x.i.impactRating&&x.i.impactRating!=="Not reviewed"}).length;
+ var h=pageHead("Intervention Impact Dashboard","Review provision against baseline, outcomes, reading progress and classroom evidence","");
+ h+='<div class="grid three"><div class="card kpi"><small>Interventions</small><strong>'+rows.length+'</strong><span>All recorded</span></div><div class="card kpi"><small>Impact reviewed</small><strong>'+reviewed+'</strong><span>With recorded judgement</span></div><div class="card kpi"><small>Strong positive impact</small><strong>'+strong+'</strong><span>Staff-recorded review outcome</span></div></div><div class="notice" style="margin-bottom:12px">Impact ratings summarise professional review. They do not prove that one intervention caused a change.</div>';
+ h+='<div class="table-wrap"><table><thead><tr><th>Student</th><th>Intervention</th><th>Baseline</th><th>Reading progress</th><th>Outcome</th><th>Impact</th><th>Next step</th><th></th></tr></thead><tbody>'+rows.map(function(x){return '<tr><td><span class="link" onclick="openStudent(\''+x.s.id+'\',\'interventions\')">'+esc(x.s.name)+'</span></td><td>'+esc(x.i.name)+'</td><td>'+esc(x.i.baseline||"—")+'</td><td>'+(x.p?((x.p.gain>0?"+":"")+x.p.gain+"mo / "+x.p.elapsed+"mo"):"—")+'</td><td>'+esc(x.i.outcome||"Awaiting review")+'</td><td>'+badge(x.i.impactRating||"Not reviewed",(x.i.impactRating||"").indexOf("Strong")>-1?"ok":"")+'</td><td>'+esc(x.i.nextStep||"—")+'</td><td>'+(roleCanEdit()?'<button class="btn" onclick="openInterventionReview(\''+x.s.id+'\',\''+x.i.id+'\')">Review</button>':"")+'</td></tr>'}).join("")+'</tbody></table></div>';
+ return h
+}
+function studentInterventionsEnhanced(s){
+ var h='<div class="card"><div class="section-title"><h3>Intervention history</h3>'+(roleCanEdit()?'<button class="btn" onclick="openIntervention(\''+s.id+'\')">+ Intervention</button>':"")+'</div>';
+ if(!(s.interventions||[]).length)return h+'<div class="empty">No interventions recorded.</div></div>';
+ (s.interventions||[]).forEach(function(i){h+='<div class="priority"><div style="flex:1"><b>'+esc(i.name)+' · '+esc(i.focus)+'</b><span>'+esc(i.frequency)+' · '+dateText(i.startDate)+' to '+dateText(i.endDate)+' · Review '+dateText(i.reviewDate)+' · '+esc(i.staff)+'</span><div class="small" style="margin-top:6px"><b>Baseline:</b> '+esc(i.baseline||"—")+' · <b>Target:</b> '+esc(i.target||"—")+'</div><div class="small" style="margin-top:4px"><b>Outcome:</b> '+esc(i.outcome||"Awaiting review")+' · <b>Impact:</b> '+esc(i.impactRating||"Not reviewed")+(i.nextStep?' · <b>Next:</b> '+esc(i.nextStep):"")+'</div></div><div>'+badge(i.status,i.status==="Completed"?"ok":"brand")+(roleCanEdit()?'<div style="margin-top:6px"><button class="btn" onclick="openInterventionReview(\''+s.id+'\',\''+i.id+'\')">Review</button></div>':"")+'</div></div>'});return h+'</div>'
+}
+function ealTrendTable(s){
+ var points=[];
+ (s.assessments||[]).forEach(function(a){points.push({date:a.date,type:"Assessment",skills:a.skills})});
+ (s.ealTests||[]).filter(function(t){return t.skills}).forEach(function(t){points.push({date:t.date,type:t.type,skills:t.skills})});
+ points.sort(function(a,b){return String(a.date).localeCompare(String(b.date))});
+ if(!points.length)return '<div class="empty">No EAL assessment history available.</div>';
+ var first=points[0],last=points[points.length-1];
+ return '<div class="table-wrap"><table><thead><tr><th>Domain</th><th>Earliest</th><th>Current</th><th>Change</th><th>Current descriptor</th></tr></thead><tbody>'+skills.map(function(k){var a=Number(first.skills[k])||1,b=Number(last.skills[k])||1,d=b-a;return '<tr><td>'+esc(skillLabels[k])+'</td><td>'+a+'/5</td><td>'+b+'/5</td><td>'+badge((d>0?"+":"")+d,d>0?"ok":d<0?"warn":"")+'</td><td>'+esc(domainDescriptor(b))+'</td></tr>'}).join("")+'</tbody></table></div>'
+}
+function studentEalEnhanced(s){
+ var h=studentEal(s);
+ h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>EAL domain trend</h3><button class="btn" onclick="setView(\'ealtest\')">Open test centre</button></div>'+ealTrendTable(s)+'</div>';
+ return h
+}
+function renderEalTestPro(){
+ var h=renderEalTestEnhanced(),all=[];currentStudents().forEach(function(s){(s.ealTests||[]).forEach(function(t){all.push({s:s,t:t})})});
+ var descriptors=[1,2,3,4,5].map(function(n){return '<tr><td>'+n+'/5</td><td>'+esc(domainDescriptor(n))+'</td></tr>'}).join("");
+ h+='<div class="grid two" style="margin-top:14px"><div class="card"><div class="section-title"><h3>Shared 1–5 descriptor scale</h3></div><div class="table-wrap"><table><thead><tr><th>Score</th><th>Descriptor</th></tr></thead><tbody>'+descriptors+'</tbody></table></div></div><div class="card"><div class="section-title"><h3>Recent test activity</h3></div>';
+ all.sort(function(a,b){return String(b.t.date).localeCompare(String(a.t.date))}).slice(0,8).forEach(function(x){h+='<div class="priority"><div><b>'+dateText(x.t.date)+' · '+esc(x.s.name)+'</b><span>'+esc(x.t.type)+(x.t.autoScore!==undefined?' · score '+x.t.autoScore+'/'+x.t.maxScore:' · profile '+testAverage(x.t).toFixed(1)+'/5')+'</span></div></div>'});h+='</div></div>';
+ h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Teacher-administered domain tasks</h3></div><div class="quick"><button onclick="openDomainTask(\'speaking\')"><b>Speaking task</b><span>Prompt + rubric evidence</span></button><button onclick="openDomainTask(\'listening\')"><b>Listening / instructions</b><span>Teacher-delivered check</span></button><button onclick="openDomainTask(\'writing\')"><b>Writing sample</b><span>Short structured response</span></button><button onclick="openDomainTask(\'reading\')"><b>Reading response</b><span>Comprehension evidence</span></button></div></div>';
+ return h
+}
+window.openDomainTask=function(domain){
+ var prompts={
+  speaking:"Ask the pupil to explain a familiar process, event or classroom topic in their own words, then ask one follow-up question.",
+  listening:"Give a short 2–3 step classroom instruction once at normal pace. Ask the pupil to carry it out or explain what they need to do.",
+  writing:"Ask for a short structured paragraph explaining an idea, using at least one connective and relevant academic vocabulary.",
+  reading:"Give a short age-appropriate school text and ask for the main idea, one detail and the meaning of one word from context."
+ };
+ modal(skillLabels[domain]+" evidence task",'<div class="field"><label>Student</label><select id="dtStudent">'+studentOptions()+'</select></div><div class="notice" style="margin:10px 0"><b>Task:</b> '+esc(prompts[domain])+'</div><div class="field"><label>Score</label><select id="dtScore">'+[1,2,3,4,5].map(function(n){return '<option value="'+n+'">'+n+'/5 - '+esc(domainDescriptor(n))+'</option>'}).join("")+'</select></div><div class="field"><label>Evidence note</label><textarea id="dtNote" placeholder="Record a brief concrete example of what the pupil did"></textarea></div>',"Save evidence",function(){var s=studentById(val("dtStudent"));if(!s)return;var score=Number(val("dtScore"));var sk=Object.assign({},s.proficiency);sk[domain]=score;s.ealTests=s.ealTests||[];s.ealTests.push({id:uid("test"),date:today(),type:skillLabels[domain]+" Evidence Task",assessor:ui.role,skills:sk,notes:val("dtNote"),domain:domain,domainScore:score});save("Saved "+skillLabels[domain]+" evidence task for "+s.name);closeModal();render();toast("Evidence task saved")})
+}
+function globalSearchEnhanced(q){
+ q=String(q||"").trim().toLowerCase();if(!q)return;
+ var matches=currentStudents().filter(function(s){return [s.name,s.firstLanguage,s.year,s.form,s.keyStaff,s.development,(s.strategies||[]).join(" "),suggestedNextAction(s)].join(" ").toLowerCase().indexOf(q)>-1}).slice(0,12);
+ if(!matches.length)return toast("No matching student or support need found");
+ if(matches.length===1)return openStudent(matches[0].id);
+ document.getElementById("modalTitle").textContent="Search results";
+ document.getElementById("modalBody").innerHTML=matches.map(function(s){return '<div class="priority" style="cursor:pointer" onclick="closeModal();openStudent(\''+s.id+'\')"><div><b>'+esc(s.name)+'</b><span>'+esc(s.year+" · "+s.firstLanguage+" · "+suggestedNextAction(s))+'</span></div></div>'}).join("");
+ document.getElementById("modalFoot").innerHTML='<button class="btn" onclick="closeModal()">Close</button>';
+ document.getElementById("modal").showModal()
+}
+window.openMobileQuickMenu=function(){
+ document.getElementById("modalTitle").textContent="Quick entry";
+ document.getElementById("modalBody").innerHTML='<div class="quick"><button onclick="closeModal();openObservation()"><b>Observation</b><span>Fast classroom note</span></button><button onclick="closeModal();openQuickReading()"><b>Reading age</b><span>Record assessment</span></button><button onclick="closeModal();openEalTest()"><b>EAL assessment</b><span>8-domain profile</span></button><button onclick="closeModal();openStudentLanguageCheck()"><b>Language check</b><span>Auto-marked written check</span></button></div>';
+ document.getElementById("modalFoot").innerHTML='<button class="btn" onclick="closeModal()">Close</button>';
+ document.getElementById("modal").showModal()
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
  else if(ui.view==="dashboard")html=renderDashboardEnhanced();
- else if(ui.view==="students")html=renderStudents();
+ else if(ui.view==="students")html=renderStudentsEnhanced();
  else if(ui.view==="reading")html=renderReading();
  else if(ui.view==="assessments")html=renderAssessments();
  else if(ui.view==="interventions")html=renderInterventions();
@@ -762,8 +869,8 @@ function render(){
  else if(ui.view==="teacher")html=renderTeacherView();
  else if(ui.view==="calendar")html=renderCalendar();
  else if(ui.view==="tasks")html=renderTasks();
- else if(ui.view==="impact")html=renderImpact();
- else if(ui.view==="ealtest")html=renderEalTestEnhanced();
+ else if(ui.view==="impact")html=renderImpactEnhanced();
+ else if(ui.view==="ealtest")html=renderEalTestPro();
  else if(ui.view==="cohorts")html=renderCohortsEnhanced();
  else if(ui.view==="reports")html=renderReportsEnhanced();
  else if(ui.view==="slt")html=renderSlt();
@@ -776,7 +883,7 @@ function render(){
 document.getElementById("nav").addEventListener("click",function(e){var b=e.target.closest("button[data-view]");if(b)setView(b.dataset.view)});
 document.getElementById("roleSelect").addEventListener("change",function(){ui.role=this.value;localStorage.setItem("ealRole",ui.role);save("Switched view role to "+ui.role);render()});
 document.getElementById("privacyBtn").addEventListener("click",function(){ui.privacy=!ui.privacy;this.textContent="Privacy: "+(ui.privacy?"On":"Off");this.classList.toggle("primary",ui.privacy);render()});
-document.getElementById("globalSearch").addEventListener("keydown",function(e){if(e.key==="Enter"){globalSearch(this.value);this.value=""}});
+document.getElementById("globalSearch").addEventListener("keydown",function(e){if(e.key==="Enter"){globalSearchEnhanced(this.value);this.value=""}});
 window.ui=ui;window.render=render;window.setView=setView;
 load();render();
 if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}
