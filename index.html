@@ -57,6 +57,10 @@ dialog{width:min(720px,94vw);border:0;border-radius:16px;padding:0;box-shadow:0 
     <button data-view="calendar">◷ Calendar & Reminders</button>
     <button data-view="tasks">☑ Staff Tasks</button>
     <button data-view="impact">↗ Intervention Impact</button>
+    <button data-view="sessions">◴ Intervention Sessions</button>
+    <button data-view="supportplan">▤ Support Timetable</button>
+    <button data-view="feedback">✉ Teacher Feedback</button>
+    <button data-view="sixweeks">6W First 6 Weeks</button>
     <button data-view="ealtest">✦ EAL Test</button>
     <button data-view="cohorts">▦ Cohorts & Heatmap</button>
     <button data-view="reports">▧ Reports</button>
@@ -510,6 +514,9 @@ function ensureEnhancedData(){
  if(state.settings.mobileQuickEntry===undefined)state.settings.mobileQuickEntry=true;
  state.tasks=state.tasks||[];
  state.restorePoints=state.restorePoints||[];
+ state.interventionSessions=state.interventionSessions||[];
+ state.supportTimetable=state.supportTimetable||[];
+ state.feedbackRequests=state.feedbackRequests||[];
  state.staffAccounts=state.staffAccounts||[
   {id:"staff-eal",name:"EAL Coordinator",role:"EAL Coordinator",active:true},
   {id:"staff-teacher",name:"Class Teacher",role:"Teacher",active:true},
@@ -524,6 +531,7 @@ function ensureEnhancedData(){
   s.attendance=s.attendance||{percent:"",note:""};
   s.newArrival=s.newArrival||{languageBackground:false,previousSchooling:false,baseline:false,readingAge:false,parentContact:false,strategies:false,firstReview:false};
   s.additionalNeedsEvidence=s.additionalNeedsEvidence||[];
+  s.sixWeekPathway=s.sixWeekPathway||{week1:{done:false,note:""},week2:{done:false,note:""},week4:{done:false,note:""},week6:{done:false,note:""}};
   s.parentReportLanguage=s.parentReportLanguage||state.settings.parentReportLanguage||"English";
   s.subjectProgress=s.subjectProgress||{};
   s.vocab=s.vocab||[];
