@@ -33,9 +33,10 @@ dialog{width:min(720px,94vw);border:0;border-radius:16px;padding:0;box-shadow:0 
 .toast{position:fixed;right:20px;bottom:20px;z-index:100;background:#173d34;color:#fff;border-radius:10px;padding:11px 14px;box-shadow:var(--shadow);opacity:0;transform:translateY(10px);pointer-events:none;transition:.2s}.toast.show{opacity:1;transform:none}
 @media(max-width:1100px){.kpis{grid-template-columns:repeat(3,1fr)}.two{grid-template-columns:1fr}.quick{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:760px){.app{grid-template-columns:1fr}aside{height:auto;position:static;padding:10px}.brand{padding-bottom:8px}.nav{display:flex;overflow:auto}.nav button{width:auto;white-space:nowrap}.nav .sep,.aside-foot{display:none}.topbar{padding:10px}.content{padding:13px}.kpis,.three{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.page-head{flex-direction:column}.profile-head{flex-direction:column}.quick{grid-template-columns:1fr 1fr}}
-@media(max-width:460px){.kpis,.three,.quick{grid-template-columns:1fr}.topbar select{display:none}}
+.mobile-quick{display:none;position:fixed;right:18px;bottom:18px;width:54px;height:54px;border-radius:50%;border:0;background:var(--brand);color:white;font-size:28px;box-shadow:0 8px 24px rgba(0,0,0,.22);z-index:20;cursor:pointer}@media(max-width:760px){.mobile-quick{display:block}}@media(max-width:460px){.kpis,.three,.quick{grid-template-columns:1fr}.topbar select{display:none}}
 @media print{aside,.topbar,.actions,.tabs,.btn,.filters{display:none!important}.app{display:block}.content{padding:0}.card,.profile-head{box-shadow:none;break-inside:avoid}.print-only{display:block}}
 </style>
+<link rel="manifest" href="manifest.webmanifest">
 </head>
 <body>
 <div class="app">
@@ -57,6 +58,7 @@ dialog{width:min(720px,94vw);border:0;border-radius:16px;padding:0;box-shadow:0 
     <button data-view="ealtest">✦ EAL Test</button>
     <button data-view="cohorts">▦ Cohorts & Heatmap</button>
     <button data-view="reports">▧ Reports</button>
+    <button data-view="slt">◩ SLT / Inspection</button>
     <button data-view="tools">⚒ Tools & Rollover</button>
     <div class="sep"></div>
     <button data-view="archive">⌁ Archive</button>
@@ -77,6 +79,7 @@ dialog{width:min(720px,94vw);border:0;border-radius:16px;padding:0;box-shadow:0 
 </div>
 <dialog id="modal"><div class="modal-head"><h3 id="modalTitle">Record</h3><button class="btn" onclick="closeModal()">✕</button></div><div class="modal-body" id="modalBody"></div><div class="modal-foot" id="modalFoot"></div></dialog>
 <div class="toast" id="toast"></div>
+<button id="mobileQuick" class="mobile-quick" onclick="openObservation()" aria-label="Quick observation">＋</button>
 <input type="file" id="fileInput" hidden>
 <script>
 (function(){
@@ -143,7 +146,7 @@ function demo(){
  }
 }
 
-function load(){try{var s=JSON.parse(localStorage.getItem(STORAGE));state=s&&s.students?s:demo()}catch(e){state=demo()}ensureEnhancedData();ui.role=localStorage.getItem("ealRole")||"Administrator";document.getElementById("roleSelect").value=ui.role}
+function load(){try{var s=JSON.parse(localStorage.getItem(STORAGE));state=s&&s.students?s:demo()}catch(e){state=demo()}ensureEnhancedData();applyBranding();ui.role=localStorage.getItem("ealRole")||"Administrator";document.getElementById("roleSelect").value=ui.role}
 function setView(v){ui.view=v;ui.studentId=null;document.querySelectorAll("#nav button").forEach(function(b){b.classList.toggle("active",b.dataset.view===v)});render()}
 function pageHead(title,sub,actions){return '<div class="page-head"><div><h2>'+esc(title)+'</h2><p>'+esc(sub||"")+'</p></div><div class="actions">'+(actions||"")+'</div></div>'}
 function badge(text,type){return '<span class="badge '+(type||"")+'">'+esc(text)+'</span>'}
@@ -649,10 +652,106 @@ window.printTermlyPack=function(){
  w.document.write(html+'</body></html>');w.document.close();setTimeout(function(){w.print()},200)
 }
 
+
+function applyBranding(){
+ state.settings.accent=state.settings.accent||"#275d4b";
+ state.settings.schoolShortName=state.settings.schoolShortName||"EAL";
+ document.documentElement.style.setProperty("--brand",state.settings.accent);
+ var logo=document.querySelector(".logo");if(logo)logo.textContent=state.settings.schoolShortName||"EAL"
+}
+window.updateBranding=function(){
+ var a=document.getElementById("brandAccent"),s=document.getElementById("brandShort");
+ if(a)state.settings.accent=a.value||"#275d4b";if(s)state.settings.schoolShortName=s.value||"EAL";save("Updated school branding");applyBranding();render()
+}
+function renderDashboardEnhanced(){
+ var h=renderDashboard(),items=calendarItems(),soon=addMonths(today(),1),due=items.filter(function(x){return x.date<=soon}).slice(0,6);
+ h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Coordinator morning briefing</h3><span class="small muted">Today and upcoming actions</span></div><div class="grid three"><div><div class="score">'+getPriorities().length+'</div><div class="small muted">priority actions</div></div><div><div class="score">'+currentStudents().filter(readingDue).length+'</div><div class="small muted">reading reassessments due</div></div><div><div class="score">'+(state.tasks||[]).filter(function(t){return t.status!=="Completed"}).length+'</div><div class="small muted">open staff tasks</div></div></div>';
+ if(due.length)h+='<div style="margin-top:10px">'+due.map(function(x){return '<div class="priority"><div><b>'+dateText(x.date)+' · '+esc(x.type)+'</b><span>'+esc(x.student?x.student.name:"Whole-school")+'</span></div></div>'}).join("")+'</div>';
+ return h+'</div>'
+}
+function heatCell(n){var pct=Math.max(0,Math.min(100,Number(n||1)*20));return '<div style="min-width:72px"><div class="track"><div class="fill" style="width:'+pct+'%"></div></div><span class="small">'+Number(n||1)+'/5</span></div>'}
+function renderCohortsEnhanced(){
+ var h=renderCohorts(),ss=currentStudents();
+ h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Whole-school EAL proficiency heatmap</h3><span class="small muted">Domain scores are evidence, not pupil rankings</span></div><div class="table-wrap"><table><thead><tr><th>Student</th>'+skills.map(function(k){return '<th>'+esc(skillLabels[k])+'</th>'}).join("")+'</tr></thead><tbody>'+ss.map(function(s){return '<tr><td><span class="link" onclick="openStudent(\''+s.id+'\',\'eal\')">'+esc(s.name)+'</span></td>'+skills.map(function(k){return '<td>'+heatCell(s.proficiency[k])+'</td>'}).join("")+'</tr>'}).join("")+'</tbody></table></div></div>';
+ h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Cohort comparison</h3></div><div class="grid three">'+["Year 7","Year 8","Year 9","Year 10","Year 11","Year 12","Year 13"].map(function(y){var a=ss.filter(function(s){return s.year===y});if(!a.length)return "";var avg=a.reduce(function(n,s){return n+testAverage({skills:s.proficiency})},0)/a.length;return '<div class="lang-card"><strong>'+avg.toFixed(1)+'/5</strong><span class="small muted">'+y+' average domain profile · '+a.length+' pupils</span></div>'}).join("")+'</div></div>';
+ return h
+}
+function renderSlt(){
+ var ss=currentStudents(),active=ss.reduce(function(n,s){return n+(s.interventions||[]).filter(function(i){return i.status!=="Completed"}).length},0),complete=ss.length?Math.round(ss.reduce(function(n,s){return n+completenessScore(s)},0)/ss.length):0;
+ var h=pageHead("SLT / Inspection Overview","Anonymised whole-school provision and evidence summary","");
+ h+='<div class="grid kpis"><div class="card kpi"><small>Current EAL pupils</small><strong>'+ss.length+'</strong><span>Across '+new Set(ss.map(function(s){return s.year})).size+' year groups</span></div><div class="card kpi"><small>Active interventions</small><strong>'+active+'</strong><span>Current targeted provision</span></div><div class="card kpi"><small>Data completeness</small><strong>'+complete+'%</strong><span>Average profile completeness</span></div><div class="card kpi"><small>Reviews due</small><strong>'+ss.filter(reviewDue).length+'</strong><span>Due / overdue</span></div><div class="card kpi"><small>Reading reassessments</small><strong>'+ss.filter(readingDue).length+'</strong><span>Due / overdue</span></div></div>';
+ h+='<div class="grid two"><div class="card"><h3>Provision evidence</h3><p class="small">The system records baseline profiles, eight-domain EAL assessments, reading ages, classroom observations, targets, interventions, review dates, student voice, family communication and evidence references.</p><button class="btn" onclick="printTermlyPack()">Create termly evidence pack</button></div><div class="card"><h3>Current action assurance</h3><div class="priority"><div><b>'+getPriorities().length+' coordinator priorities</b><span>Automatically generated from overdue assessment, review, intervention and target dates.</span></div></div><div class="priority"><div><b>'+(state.tasks||[]).filter(function(t){return t.status!=="Completed"}).length+' open staff tasks</b><span>Assigned follow-up actions with due dates.</span></div></div></div></div>';
+ h+='<div class="notice" style="margin-top:14px">This view deliberately reports aggregate provision rather than ranking individual pupils.</div>';
+ return h
+}
+function renderReportsEnhanced(){
+ var h=renderReports();
+ h+='<div class="grid three" style="margin-top:14px"><div class="card"><h3>Termly EAL report pack</h3><p class="small muted">Whole-school overview plus one page per pupil.</p><button class="btn primary" onclick="printTermlyPack()">Create pack</button></div><div class="card"><h3>SLT / inspection summary</h3><p class="small muted">Anonymised provision, review and data-completeness overview.</p><button class="btn" onclick="setView(\'slt\')">Open SLT view</button></div><div class="card"><h3>Parent communication preference</h3><p class="small muted">Parent-facing reports retain a clear English source copy and record each family language preference.</p><button class="btn" onclick="setView(\'students\')">Open pupil profiles</button></div></div>';
+ return h
+}
+function renderSettingsEnhanced(){
+ var h=renderSettings();
+ h+='<div class="grid two" style="margin-top:14px"><div class="card"><div class="section-title"><h3>School branding</h3></div><div class="form-grid"><div class="field"><label>Short logo text</label><input id="brandShort" maxlength="6" value="'+esc(state.settings.schoolShortName||"EAL")+'"></div><div class="field"><label>Accent colour</label><input id="brandAccent" type="color" value="'+esc(state.settings.accent||"#275d4b")+'"></div></div><button class="btn primary" onclick="updateBranding()">Apply branding</button></div><div class="card"><div class="section-title"><h3>Staff access prototype</h3></div><p class="small muted">Current role views support Administrator, EAL Coordinator, Teacher, SLT and Read only. These are local prototype permissions, not authenticated accounts.</p><div class="notice privacy">Before real pupil data is used, connect a school-approved authentication/backend so access is tied to real staff accounts and centrally managed permissions.</div></div></div>';
+ return h
+}
+function renderToolsEnhanced(){
+ var h=renderTools();
+ h+='<div class="grid four" style="margin-top:14px"><div class="card"><h3>CSV mapping wizard</h3><p class="small muted">Paste a CSV export and map common MIS columns before import.</p><button class="btn" onclick="openCsvMappingWizard()">Open mapper</button></div><div class="card"><h3>Restore / undo</h3><p class="small muted">'+(state.restorePoints||[]).length+' local restore point(s) available.</p><button class="btn" onclick="openRestorePoints()">Restore data</button></div><div class="card"><h3>Leaver workflow</h3><p class="small muted">Record leaving date and destination before archiving.</p><button class="btn" onclick="openLeaverWorkflow()">Start leaver workflow</button></div><div class="card"><h3>Vocabulary templates</h3><p class="small muted">Add a starter bank for Science, Maths, English or Humanities.</p><button class="btn" onclick="openVocabTemplate()">Add template</button></div></div>';
+ return h
+}
+window.openRestorePoints=function(){
+ var pts=state.restorePoints||[];if(!pts.length)return toast("No restore points available");
+ modal("Restore previous data",'<div class="notice">Restoring replaces the current local browser data with the selected saved point.</div>'+pts.map(function(p){return '<label class="priority"><input type="radio" name="restorePick" value="'+p.id+'"><div><b>'+new Date(p.date).toLocaleString("en-GB")+'</b><span>'+esc(p.label||"Restore point")+'</span></div></label>'}).join(""),"Restore",function(){var pick=document.querySelector('input[name="restorePick"]:checked');if(!pick)return toast("Select a restore point");var p=pts.find(function(x){return x.id===pick.value});if(!p)return;var d=JSON.parse(p.data);state.settings=d.settings;state.students=d.students;state.archive=d.archive||[];state.tasks=d.tasks||[];state.staffAccounts=d.staffAccounts||[];ensureEnhancedData();save("Restored local data from restore point");closeModal();applyBranding();render();toast("Data restored")})
+}
+window.openCsvMappingWizard=function(){
+ modal("CSV mapping wizard",'<div class="field"><label>Paste CSV data</label><textarea id="mapCsv" style="min-height:150px" placeholder="Student Name,Year,Form,DOB,Language&#10;Example Student,Year 8,8A,2013-05-12,Arabic"></textarea></div><div class="form-grid"><div class="field"><label>Name column</label><input id="mapName" value="Student Name"></div><div class="field"><label>Year column</label><input id="mapYear" value="Year"></div><div class="field"><label>Form column</label><input id="mapForm" value="Form"></div><div class="field"><label>DOB column</label><input id="mapDob" value="DOB"></div><div class="field"><label>First-language column</label><input id="mapLang" value="Language"></div><div class="field"><label>Key staff column</label><input id="mapStaff" value="Key Staff"></div></div>',"Import mapped CSV",function(){
+  var raw=val("mapCsv").trim();if(!raw)return toast("Paste CSV data first");var lines=raw.split(/\r?\n/).filter(Boolean),heads=lines[0].split(",").map(function(x){return x.trim().replace(/^"|"$/g,"")});
+  function idx(id){return heads.indexOf(val(id))}
+  var map={name:idx("mapName"),year:idx("mapYear"),form:idx("mapForm"),dob:idx("mapDob"),lang:idx("mapLang"),staff:idx("mapStaff")};if(map.name<0)return toast("Name column not found");
+  createRestorePoint();var added=0;
+  lines.slice(1).forEach(function(line){var cols=line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g)||[];cols=cols.map(function(x){return String(x).replace(/^"|"$/g,"").replace(/""/g,'"').trim()});var name=cols[map.name]||"";if(!name)return;var p={};skills.forEach(function(k){p[k]=2});state.students.push({id:uid("stu"),name:name,preferredName:name.split(" ")[0],year:map.year>=0?cols[map.year]||"Year 7":"Year 7",form:map.form>=0?cols[map.form]||"":"",dob:map.dob>=0?cols[map.dob]||"2013-01-01":"2013-01-01",admissionDate:today(),firstLanguage:map.lang>=0?cols[map.lang]||"":"",otherLanguages:[],country:"",ukEntry:"",previousSchooling:"",keyStaff:map.staff>=0?cols[map.staff]||"EAL Team":"EAL Team",strengths:"",development:"",notes:"Imported using CSV mapping wizard",archived:false,nextReview:"",proficiency:p,readingAssessments:[],targets:[],interventions:[],observations:[],assessments:[],reviews:[],studentVoice:{},strategies:["Pre-teach essential vocabulary","Use visual examples","Allow processing time"],vocab:[],subjectProgress:{},evidence:[],communicationLog:[],readingLog:[],voiceHistory:[],ealTests:[],attendance:{percent:"",note:""},newArrival:{},additionalNeedsEvidence:[],parentReportLanguage:state.settings.parentReportLanguage||"English"});added++});
+  ensureEnhancedData();save("Imported "+added+" students using CSV mapping wizard");closeModal();render();toast(added+" student(s) imported")
+ })
+}
+window.openLeaverWorkflow=function(){
+ modal("Leaver workflow",'<div class="form-grid"><div class="field full"><label>Student</label><select id="leaveStudent">'+studentOptions()+'</select></div><div class="field"><label>Leaving date</label><input id="leaveDate" type="date" value="'+today()+'"></div><div class="field"><label>Destination</label><input id="leaveDest"></div><div class="field full"><label>Retention / handover note</label><textarea id="leaveNote"></textarea></div></div>',"Archive leaver",function(){var s=studentById(val("leaveStudent"));if(!s)return;s.leavingDate=val("leaveDate");s.destination=val("leaveDest");s.retentionNote=val("leaveNote");createRestorePoint();state.students=state.students.filter(function(x){return x.id!==s.id});state.archive=state.archive||[];state.archive.push(s);save("Archived leaver "+s.name);closeModal();setView("archive");toast("Leaver archived")})
+}
+var vocabTemplates={
+ Science:["analyse","evaluate","hypothesis","variable","reliable","valid","compare","explain","conclude","evidence"],
+ Maths:["estimate","proportion","ratio","sequence","justify","interpret","approximately","increase","decrease","compare"],
+ English:["infer","analyse","effect","structure","tone","contrast","evidence","interpret","theme","context"],
+ Humanities:["cause","consequence","significance","source","evidence","interpret","perspective","change","continuity","evaluate"]
+};
+window.openVocabTemplate=function(id){
+ var studentField=id?'<input type="hidden" id="vtStudent" value="'+id+'">':'<div class="field"><label>Student</label><select id="vtStudent">'+studentOptions()+'</select></div>';
+ modal("Add subject vocabulary template",studentField+'<div class="field"><label>Template</label><select id="vtSubject">'+Object.keys(vocabTemplates).map(function(k){return "<option>"+k+"</option>"}).join("")+'</select></div><div class="notice">Adds an editable starter bank of common academic command and subject-language terms.</div>',"Add template",function(){var s=studentById(val("vtStudent"));if(!s)return;var sub=val("vtSubject"),existing=new Set((s.vocab||[]).map(function(v){return String(v.term).toLowerCase()}));s.vocab=s.vocab||[];(vocabTemplates[sub]||[]).forEach(function(term){if(!existing.has(term.toLowerCase()))s.vocab.push({id:uid("voc"),term:term,type:"Tier 2/3",subject:sub,status:"Emerging"})});save("Added "+sub+" vocabulary template for "+s.name);closeModal();render()})
+}
+var studentCheckQuestions=[
+ {q:"Choose the word closest in meaning to 'rapid'.",o:["slow","fast","quiet","heavy"],a:1},
+ {q:"Which sentence is written correctly?",o:["She go to school.","She goes to school.","She going school.","She gone to school."],a:1},
+ {q:"If a teacher says 'compare the two results', what should you do?",o:["List only one result","Explain similarities and differences","Copy the question","Draw any picture"],a:1},
+ {q:"Which word best completes: 'The experiment was repeated ___ improve reliability.'",o:["to","at","by","of"],a:0},
+ {q:"What does 'evidence' mean in school work?",o:["Information used to support an idea","A guess with no reason","A title","A timetable"],a:0},
+ {q:"Choose the best connective: 'The temperature increased; ___, the reaction became faster.'",o:["however","therefore","although","unless"],a:1},
+ {q:"Which instruction asks you to give reasons?",o:["State","Name","Explain","Label"],a:2},
+ {q:"Choose the correct word: 'There ___ three main causes.'",o:["is","are","was","be"],a:1},
+ {q:"What is the best meaning of 'significant' in an academic sentence?",o:["Important or meaningful","Very small","Always correct","Unrelated"],a:0},
+ {q:"Which phrase is most suitable for an academic conclusion?",o:["I reckon","The evidence suggests","Whatever","It is nice"],a:1}
+];
+window.openStudentLanguageCheck=function(){
+ var qhtml=studentCheckQuestions.map(function(q,i){return '<div class="card" style="margin-bottom:10px"><b>'+(i+1)+'. '+esc(q.q)+'</b><div style="margin-top:8px">'+q.o.map(function(o,j){return '<label style="display:block;margin:5px 0"><input type="radio" name="lc_'+i+'" value="'+j+'"> '+esc(o)+'</label>'}).join("")+'</div></div>'}).join("");
+ modal("Auto-marked student language check",'<div class="field"><label>Student</label><select id="lcStudent">'+studentOptions()+'</select></div><div class="notice" style="margin:10px 0">This original short check samples academic vocabulary, grammar and written instructions. It does not test listening or speaking and must not be used alone to determine EAL proficiency.</div>'+qhtml,"Mark & save",function(){var s=studentById(val("lcStudent"));if(!s)return;var score=0,answered=0;studentCheckQuestions.forEach(function(q,i){var pick=document.querySelector('input[name="lc_'+i+'"]:checked');if(pick){answered++;if(Number(pick.value)===q.a)score++}});if(answered<studentCheckQuestions.length)return toast("Answer all questions before marking");s.ealTests=s.ealTests||[];s.ealTests.push({id:uid("test"),date:today(),type:"Auto-marked Language Check",assessor:ui.role,skills:Object.assign({},s.proficiency),notes:"Auto-marked academic language check: "+score+"/"+studentCheckQuestions.length,autoScore:score,maxScore:studentCheckQuestions.length});save("Saved auto-marked language check for "+s.name);closeModal();render();toast("Score: "+score+"/"+studentCheckQuestions.length)})
+}
+function renderEalTestEnhanced(){
+ var h=renderEalTest();
+ h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Auto-marked student language check</h3><button class="btn primary" onclick="openStudentLanguageCheck()">Start check</button></div><p class="small muted">10 original questions sampling academic vocabulary, grammar and understanding of common written classroom instructions. Results are saved to the pupil test history but do not automatically change their EAL stage.</p></div>';
+ return h
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
- else if(ui.view==="dashboard")html=renderDashboard();
+ else if(ui.view==="dashboard")html=renderDashboardEnhanced();
  else if(ui.view==="students")html=renderStudents();
  else if(ui.view==="reading")html=renderReading();
  else if(ui.view==="assessments")html=renderAssessments();
@@ -664,12 +763,13 @@ function render(){
  else if(ui.view==="calendar")html=renderCalendar();
  else if(ui.view==="tasks")html=renderTasks();
  else if(ui.view==="impact")html=renderImpact();
- else if(ui.view==="ealtest")html=renderEalTest();
- else if(ui.view==="cohorts")html=renderCohorts();
- else if(ui.view==="reports")html=renderReports();
- else if(ui.view==="tools")html=renderTools();
+ else if(ui.view==="ealtest")html=renderEalTestEnhanced();
+ else if(ui.view==="cohorts")html=renderCohortsEnhanced();
+ else if(ui.view==="reports")html=renderReportsEnhanced();
+ else if(ui.view==="slt")html=renderSlt();
+ else if(ui.view==="tools")html=renderToolsEnhanced();
  else if(ui.view==="archive")html=renderArchive();
- else if(ui.view==="settings")html=renderSettings();
+ else if(ui.view==="settings")html=renderSettingsEnhanced();
  c.innerHTML=html;
 }
 
@@ -679,6 +779,7 @@ document.getElementById("privacyBtn").addEventListener("click",function(){ui.pri
 document.getElementById("globalSearch").addEventListener("keydown",function(e){if(e.key==="Enter"){globalSearch(this.value);this.value=""}});
 window.ui=ui;window.render=render;window.setView=setView;
 load();render();
+if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}
 })();
 </script>
 </body>
