@@ -1,0 +1,10 @@
+{
+  "name": "EAL Progress Hub",
+  "short_name": "EAL Hub",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f7f6",
+  "theme_color": "#275d4b",
+  "description": "Whole-school EAL progress, reading-age, provision and assessment tracker."
+}
