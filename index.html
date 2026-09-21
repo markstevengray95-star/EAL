@@ -97,6 +97,7 @@ var skills=["listening","speaking","reading","writing","vocabulary","grammar","a
 var skillLabels={listening:"Listening",speaking:"Speaking",reading:"Reading",writing:"Writing",vocabulary:"Vocabulary",grammar:"Grammar",academic:"Academic language",classroom:"Classroom communication"};
 var levels=["New to English","Early Acquisition","Developing Competence","Competent","Fluent"];
 var state;
+var centralClient=null,centralSyncTimer=null;
 var ui={view:"dashboard",studentId:null,studentTab:"overview",studentFilter:"",yearFilter:"All",levelFilter:"All",privacy:false,role:"Administrator"};
 
 function uid(prefix){return (prefix||"id")+"_"+Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4)}
@@ -111,7 +112,7 @@ function dateText(v){if(!v)return"—";return new Date(v+"T12:00:00").toLocaleDa
 function roleCanEdit(){return ui.role==="Administrator"||ui.role==="EAL Coordinator"||ui.role==="Teacher"}
 function roleCanAdmin(){return ui.role==="Administrator"||ui.role==="EAL Coordinator"}
 function toast(msg){var t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");setTimeout(function(){t.classList.remove("show")},2200)}
-function save(action){localStorage.setItem(STORAGE,JSON.stringify(state));if(action){state.audit.unshift({id:uid("audit"),date:new Date().toISOString(),user:ui.role,action:action});state.audit=state.audit.slice(0,200);localStorage.setItem(STORAGE,JSON.stringify(state))}}
+function save(action){localStorage.setItem(STORAGE,JSON.stringify(state));if(action){state.audit.unshift({id:uid("audit"),date:new Date().toISOString(),user:ui.role,action:action});state.audit=state.audit.slice(0,200);localStorage.setItem(STORAGE,JSON.stringify(state))}scheduleCentralSync()}
 function studentById(id){return state.students.find(function(s){return s.id===id})}
 function latest(arr){return (arr||[]).slice().sort(function(a,b){return String(b.date||b.reviewDate||"").localeCompare(String(a.date||a.reviewDate||""))})[0]}
 function levelFromSkills(obj){var sum=skills.reduce(function(a,k){return a+(Number(obj&&obj[k])||1)},0);var avg=sum/skills.length;return levels[Math.max(0,Math.min(4,Math.round(avg)-1))]}
@@ -1039,6 +1040,128 @@ window.openSixWeekStudent=function(id){
  modal("First 6 Weeks - "+s.name,["week1","week2","week4","week6"].map(function(k){var x=p[k]||{};return '<div class="card" style="margin-bottom:10px"><label><input type="checkbox" id="sw_'+k+'" '+(x.done?"checked":"")+'> <b>'+k.replace("week","Week ")+'</b></label><p class="small muted">'+esc(sixWeekDefaults[k])+'</p><textarea id="swn_'+k+'" placeholder="Evidence / action note">'+esc(x.note||"")+'</textarea></div>'}).join(""),"Save pathway",function(){s.sixWeekPathway=s.sixWeekPathway||{};["week1","week2","week4","week6"].forEach(function(k){s.sixWeekPathway[k]={done:document.getElementById("sw_"+k).checked,note:val("swn_"+k),updated:today()}});save("Updated first-six-weeks pathway for "+s.name);closeModal();render();toast("Pathway updated")})
 }
 
+
+function supaCfg(){return (state.integrations&&state.integrations.supabase)||{}}
+function getCentralClient(){
+ var cfg=supaCfg();if(!cfg.projectUrl||!cfg.anonKey||!window.supabase||!window.supabase.createClient)return null;
+ if(!centralClient)centralClient=window.supabase.createClient(cfg.projectUrl,cfg.anonKey,{auth:{persistSession:true,detectSessionInUrl:true}});
+ return centralClient
+}
+function setCentralStatus(status,email){
+ state.integrations.supabase.status=status;
+ if(email!==undefined)state.integrations.supabase.userEmail=email||"";
+ localStorage.setItem(STORAGE,JSON.stringify(state))
+}
+async function resolveSchoolMembership(){
+ var client=getCentralClient();if(!client)throw Error("Central database not configured");
+ var sessionResult=await client.auth.getSession(),session=sessionResult.data&&sessionResult.data.session;
+ if(!session)throw Error("Sign in first");
+ var q=await client.from("school_memberships").select("school_id,role").eq("user_id",session.user.id).limit(1);
+ if(q.error)throw q.error;
+ if(!q.data||!q.data.length)throw Error("Your account has no school membership yet");
+ var membership=q.data[0];state.integrations.supabase.schoolId=membership.school_id;state.integrations.supabase.userEmail=session.user.email||"";
+ return {session:session,membership:membership}
+}
+async function initCentralIntegration(){
+ var client=getCentralClient();if(!client)return;
+ try{
+  var r=await client.auth.getSession(),session=r.data&&r.data.session;
+  if(session){setCentralStatus("Connected",session.user.email||"");try{await resolveSchoolMembership()}catch(e){}}
+  else setCentralStatus("Configured","");
+ }catch(e){}
+ if(ui.view==="integrations")render()
+}
+window.centralSignIn=async function(provider){
+ var client=getCentralClient();if(!client)return toast("Enter the Supabase project URL and public anon key first");
+ try{
+  var opts={redirectTo:location.origin+location.pathname};
+  if(provider==="azure")opts.scopes="email";
+  var r=await client.auth.signInWithOAuth({provider:provider,options:opts});
+  if(r.error)throw r.error
+ }catch(e){toast("Sign-in could not start")}
+}
+window.centralSignOut=async function(){
+ var client=getCentralClient();if(!client)return;
+ await client.auth.signOut();setCentralStatus("Configured","");state.integrations.supabase.schoolId="";localStorage.setItem(STORAGE,JSON.stringify(state));render();toast("Signed out")
+}
+function cleanCentralState(){
+ var copy=JSON.parse(JSON.stringify(state));
+ if(copy.integrations&&copy.integrations.supabase){copy.integrations.supabase.anonKey="";copy.integrations.supabase.userEmail=""}
+ return copy
+}
+async function centralSave(silent){
+ var cfg=supaCfg();if(cfg.status!=="Connected")return false;
+ try{
+  var resolved=await resolveSchoolMembership(),client=getCentralClient(),schoolId=resolved.membership.school_id;
+  var payload={school_id:schoolId,state_data:cleanCentralState(),updated_at:new Date().toISOString(),updated_by:resolved.session.user.id};
+  var r=await client.from("app_snapshots").upsert(payload,{onConflict:"school_id"});
+  if(r.error)throw r.error;
+  state.integrations.supabase.lastSync=new Date().toISOString();localStorage.setItem(STORAGE,JSON.stringify(state));
+  if(!silent)toast("Central data synced");return true
+ }catch(e){if(!silent)toast("Central sync failed");return false}
+}
+function scheduleCentralSync(){
+ var cfg=state&&state.integrations&&state.integrations.supabase;if(!cfg||cfg.status!=="Connected")return;
+ clearTimeout(centralSyncTimer);centralSyncTimer=setTimeout(function(){centralSave(true)},1200)
+}
+window.centralSyncNow=function(){centralSave(false)}
+window.centralLoad=async function(){
+ try{
+  var resolved=await resolveSchoolMembership(),client=getCentralClient(),schoolId=resolved.membership.school_id;
+  var r=await client.from("app_snapshots").select("state_data,updated_at").eq("school_id",schoolId).maybeSingle();
+  if(r.error)throw r.error;if(!r.data||!r.data.state_data)return toast("No central school data has been saved yet");
+  var keep=state.integrations,loaded=r.data.state_data;state=loaded;state.integrations=Object.assign({},loaded.integrations||{},keep);ensureEnhancedData();
+  state.integrations.supabase.status="Connected";state.integrations.supabase.schoolId=schoolId;state.integrations.supabase.userEmail=resolved.session.user.email||"";state.integrations.supabase.lastSync=r.data.updated_at||"";
+  localStorage.setItem(STORAGE,JSON.stringify(state));render();toast("Loaded central school data")
+ }catch(e){toast("Could not load central school data")}
+}
+window.saveCentralConfig=function(){
+ var cfg=state.integrations.supabase;cfg.projectUrl=val("ciUrl").trim().replace(/\/$/,"");cfg.anonKey=val("ciKey").trim();cfg.status=(cfg.projectUrl&&cfg.anonKey)?"Configured":"Not connected";centralClient=null;localStorage.setItem(STORAGE,JSON.stringify(state));render();initCentralIntegration();toast("Central database configuration saved")
+}
+function providerEndpoint(name){
+ var cfg=supaCfg();if(!cfg.projectUrl)return "";return cfg.projectUrl+"/functions/v1/"+name
+}
+async function callProtectedFunction(name,body){
+ var client=getCentralClient();if(!client)throw Error("No client");var r=await client.auth.getSession(),session=r.data&&r.data.session;if(!session)throw Error("Sign in first");
+ var res=await fetch(providerEndpoint(name),{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+session.access_token,"apikey":supaCfg().anonKey},body:JSON.stringify(body||{})});
+ if(!res.ok)throw Error("Function failed");return res.json()
+}
+window.saveStorageConfig=function(){
+ var s=state.integrations.storage;s.provider=val("ciStorageProvider");s.driveFolderId=val("ciDrive").trim();s.oneDrivePath=val("ciOne").trim();s.status=s.provider==="None"?"Not connected":"Configured";localStorage.setItem(STORAGE,JSON.stringify(state));render();toast("Evidence storage configuration saved")
+}
+window.testStorageConnection=async function(){
+ try{await callProtectedFunction("evidence-storage",{action:"health",provider:state.integrations.storage.provider});state.integrations.storage.status="Connected";localStorage.setItem(STORAGE,JSON.stringify(state));render();toast("Evidence storage endpoint verified")}catch(e){toast("Evidence storage backend is not configured yet")}
+}
+window.saveMisConfig=function(){
+ var m=state.integrations.mis;m.provider=val("ciMisProvider");m.backendUrl=val("ciMisUrl").trim();m.status=m.provider==="None"?"Not connected":"Configured";localStorage.setItem(STORAGE,JSON.stringify(state));render();toast("MIS configuration saved")
+}
+window.runMisSync=async function(){
+ try{
+  var data=await callProtectedFunction("mis-sync",{provider:state.integrations.mis.provider,action:"sync"});
+  state.integrations.mis.status="Connected";state.integrations.mis.lastSync=new Date().toISOString();
+  if(data&&Array.isArray(data.students))applyMisStudents(data.students);
+  localStorage.setItem(STORAGE,JSON.stringify(state));render();toast("MIS sync completed")
+ }catch(e){toast("MIS sync backend is not configured yet")}
+}
+function applyMisStudents(rows){
+ rows.forEach(function(p){
+  var s=currentStudents().find(function(x){return (p.external_id&&x.externalId===p.external_id)||(p.name&&p.dob&&x.name===p.name&&x.dob===p.dob)});
+  if(!s){var prof={};skills.forEach(function(k){prof[k]=2});s={id:uid("stu"),externalId:p.external_id||"",name:p.name||"New pupil",preferredName:p.preferred_name||"",year:p.year||"",form:p.form||"",dob:p.dob||"",admissionDate:p.admission_date||today(),firstLanguage:p.first_language||"",otherLanguages:[],country:"",ukEntry:"",previousSchooling:"",keyStaff:"EAL Team",strengths:"",development:"",notes:"Imported from MIS sync",archived:false,nextReview:"",proficiency:prof,readingAssessments:[],targets:[],interventions:[],observations:[],assessments:[],reviews:[],studentVoice:{},strategies:[],vocab:[],subjectProgress:{},evidence:[],communicationLog:[],readingLog:[],voiceHistory:[],ealTests:[],attendance:{percent:"",note:""},newArrival:{},additionalNeedsEvidence:[],sixWeekPathway:{}};state.students.push(s)}
+  s.externalId=p.external_id||s.externalId;s.name=p.name||s.name;s.preferredName=p.preferred_name||s.preferredName;s.year=p.year||s.year;s.form=p.form||s.form;s.dob=p.dob||s.dob;if(p.attendance_percent!==undefined)s.attendance={percent:String(p.attendance_percent),note:"Synced from MIS"}
+ });ensureEnhancedData();save("Applied MIS pupil sync")
+}
+function integrationBadge(status){return badge(status||"Not connected",status==="Connected"?"ok":status==="Configured"?"brand":"warn")}
+function renderIntegrations(){
+ var x=state.integrations||{},db=x.supabase||{},st=x.storage||{},m=x.mis||{};
+ var h=pageHead("Integration Centre","Central database, school sign-in, evidence storage and MIS synchronisation","");
+ h+='<div class="notice privacy" style="margin-bottom:14px"><b>Security:</b> only the Supabase public anon key belongs in this page. Google/Microsoft client secrets, Drive/OneDrive secrets and MIS credentials stay in Supabase/provider configuration or server-side functions.</div>';
+ h+='<div class="grid two"><div class="card"><div class="section-title"><h3>Central database & staff login</h3>'+integrationBadge(db.status)+'</div><div class="form-grid"><div class="field full"><label>Supabase project URL</label><input id="ciUrl" value="'+esc(db.projectUrl||"")+'" placeholder="https://project-ref.supabase.co"></div><div class="field full"><label>Supabase public anon key</label><input id="ciKey" value="'+esc(db.anonKey||"")+'" placeholder="Public anon key only"></div></div><div class="actions"><button class="btn primary" onclick="saveCentralConfig()">Save configuration</button><button class="btn" onclick="centralSignIn(\'google\')">Sign in with Google</button><button class="btn" onclick="centralSignIn(\'azure\')">Sign in with Microsoft</button>'+(db.status==="Connected"?'<button class="btn" onclick="centralSignOut()">Sign out</button>':"")+'</div><p class="small muted">Signed in: '+esc(db.userEmail||"No staff account")+(db.schoolId?" · school "+esc(db.schoolId):"")+'</p><div class="actions"><button class="btn" onclick="centralLoad()">Load central data</button><button class="btn" onclick="centralSyncNow()">Sync now</button></div><p class="small muted">Last central sync: '+(db.lastSync?new Date(db.lastSync).toLocaleString("en-GB"):"Never")+'</p></div>';
+ h+='<div class="card"><div class="section-title"><h3>How school login works</h3></div><ol class="small"><li>Google and/or Microsoft provider is enabled in Supabase Auth.</li><li>Staff authenticate with their school account.</li><li>Row-level security checks their school membership and role.</li><li>All authorised staff in the same school share the central EAL dataset.</li></ol><div class="notice">A school administrator must add initial staff memberships in the database before they can access shared data.</div></div></div>';
+ h+='<div class="grid two" style="margin-top:14px"><div class="card"><div class="section-title"><h3>Drive / OneDrive evidence storage</h3>'+integrationBadge(st.status)+'</div><div class="form-grid"><div class="field"><label>Provider</label><select id="ciStorageProvider">'+["None","Google Drive","OneDrive"].map(function(v){return '<option '+(st.provider===v?"selected":"")+'>'+v+'</option>'}).join("")+'</select></div><div class="field"><label>Google Drive folder ID</label><input id="ciDrive" value="'+esc(st.driveFolderId||"")+'"></div><div class="field full"><label>OneDrive base folder/path</label><input id="ciOne" value="'+esc(st.oneDrivePath||"")+'"></div></div><div class="actions"><button class="btn primary" onclick="saveStorageConfig()">Save</button><button class="btn" onclick="testStorageConnection()">Test server function</button></div><p class="small muted">Actual pupil documents are uploaded by an authenticated server/Edge Function so provider secrets and refresh tokens are not exposed to the browser.</p></div>';
+ h+='<div class="card"><div class="section-title"><h3>MIS sync</h3>'+integrationBadge(m.status)+'</div><div class="form-grid"><div class="field"><label>Provider</label><select id="ciMisProvider">'+["None","SIMS","Arbor","Bromcom","iSAMS"].map(function(v){return '<option '+(m.provider===v?"selected":"")+'>'+v+'</option>'}).join("")+'</select></div><div class="field full"><label>Optional provider/API base URL</label><input id="ciMisUrl" value="'+esc(m.backendUrl||"")+'"></div></div><div class="actions"><button class="btn primary" onclick="saveMisConfig()">Save</button><button class="btn" onclick="runMisSync()">Run sync</button></div><p class="small muted">Sync contract: external pupil ID, name, preferred name, DOB, year, form, admission date, first language and attendance. Provider credentials remain server-side.</p><p class="small muted">Last MIS sync: '+(m.lastSync?new Date(m.lastSync).toLocaleString("en-GB"):"Never")+'</p></div></div>';
+ return h
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
@@ -1065,6 +1188,7 @@ function render(){
  else if(ui.view==="reports")html=renderReportsEnhanced();
  else if(ui.view==="slt")html=renderSlt();
  else if(ui.view==="tools")html=renderToolsEnhanced();
+ else if(ui.view==="integrations")html=renderIntegrations();
  else if(ui.view==="archive")html=renderArchive();
  else if(ui.view==="settings")html=renderSettingsEnhanced();
  c.innerHTML=html;
@@ -1075,7 +1199,7 @@ document.getElementById("roleSelect").addEventListener("change",function(){ui.ro
 document.getElementById("privacyBtn").addEventListener("click",function(){ui.privacy=!ui.privacy;this.textContent="Privacy: "+(ui.privacy?"On":"Off");this.classList.toggle("primary",ui.privacy);render()});
 document.getElementById("globalSearch").addEventListener("keydown",function(e){if(e.key==="Enter"){globalSearchEnhanced(this.value);this.value=""}});
 window.ui=ui;window.render=render;window.setView=setView;
-load();render();
+load();render();initCentralIntegration();
 if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}
 })();
 </script>
