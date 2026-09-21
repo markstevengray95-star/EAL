@@ -1,0 +1,12 @@
+{
+  "name": "eal-progress-hub",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Whole-school EAL student progress and reading-age tracker",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
