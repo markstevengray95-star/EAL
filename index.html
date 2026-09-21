@@ -525,6 +525,11 @@ function ensureEnhancedData(){
   storage:{provider:"None",driveFolderId:"",oneDrivePath:"",status:"Not connected"},
   mis:{provider:"None",backendUrl:"",status:"Not connected",lastSync:""}
  };
+ state.integrations.supabase=state.integrations.supabase||{projectUrl:"",anonKey:"",status:"Not connected",schoolId:"",userEmail:"",lastSync:""};
+ if(state.integrations.supabase.revision===undefined)state.integrations.supabase.revision=0;
+ if(state.integrations.supabase.syncConflict===undefined)state.integrations.supabase.syncConflict=false;
+ if(state.integrations.supabase.remoteRevision===undefined)state.integrations.supabase.remoteRevision=0;
+ if(state.integrations.supabase.conflictUpdatedAt===undefined)state.integrations.supabase.conflictUpdatedAt="";
  state.staffAccounts=state.staffAccounts||[
   {id:"staff-eal",name:"EAL Coordinator",role:"EAL Coordinator",active:true},
   {id:"staff-teacher",name:"Class Teacher",role:"Teacher",active:true},
@@ -1089,30 +1094,62 @@ function cleanCentralState(){
  if(copy.integrations&&copy.integrations.supabase){copy.integrations.supabase.anonKey="";copy.integrations.supabase.userEmail=""}
  return copy
 }
+async function protectedFetch(name,body){
+ var client=getCentralClient();if(!client)throw Error("No central client");
+ var r=await client.auth.getSession(),session=r.data&&r.data.session;if(!session)throw Error("Sign in first");
+ var res=await fetch(providerEndpoint(name),{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+session.access_token,"apikey":supaCfg().anonKey},body:JSON.stringify(body||{})});
+ var data={};try{data=await res.json()}catch(e){}
+ if(!res.ok){var err=Error(data.message||data.error||("Function failed: "+res.status));err.status=res.status;err.data=data;throw err}
+ return data
+}
 async function centralSave(silent){
- var cfg=supaCfg();if(cfg.status!=="Connected")return false;
+ var cfg=supaCfg();if(cfg.status!=="Connected"||cfg.syncConflict)return false;
  try{
-  var resolved=await resolveSchoolMembership(),client=getCentralClient(),schoolId=resolved.membership.school_id;
-  var payload={school_id:schoolId,state_data:cleanCentralState(),updated_at:new Date().toISOString(),updated_by:resolved.session.user.id};
-  var r=await client.from("app_snapshots").upsert(payload,{onConflict:"school_id"});
-  if(r.error)throw r.error;
-  state.integrations.supabase.lastSync=new Date().toISOString();localStorage.setItem(STORAGE,JSON.stringify(state));
-  if(!silent)toast("Central data synced");return true
- }catch(e){if(!silent)toast("Central sync failed");return false}
+  var resolved=await resolveSchoolMembership(),schoolId=resolved.membership.school_id;
+  var result=await protectedFetch("app-sync",{action:"save",schoolId:schoolId,state:cleanCentralState(),expectedRevision:Number(cfg.revision||0)});
+  cfg.revision=Number(result.revision||cfg.revision||0);
+  cfg.lastSync=result.updatedAt||new Date().toISOString();
+  cfg.syncConflict=false;cfg.remoteRevision=0;cfg.conflictUpdatedAt="";
+  localStorage.setItem(STORAGE,JSON.stringify(state));
+  if(!silent)toast("Central data synced · revision "+cfg.revision);return true
+ }catch(e){
+  if(e&&e.status===409){
+   cfg.syncConflict=true;
+   cfg.remoteRevision=Number(e.data&&e.data.currentRevision||0);
+   cfg.conflictUpdatedAt=(e.data&&e.data.updatedAt)||"";
+   localStorage.setItem(STORAGE,JSON.stringify(state));
+   if(!silent)toast("Central data changed elsewhere. Reload before saving.");
+   if(ui.view==="integrations")render();
+   return false
+  }
+  if(!silent)toast("Central sync failed");return false
+ }
 }
 function scheduleCentralSync(){
- var cfg=state&&state.integrations&&state.integrations.supabase;if(!cfg||cfg.status!=="Connected")return;
+ var cfg=state&&state.integrations&&state.integrations.supabase;if(!cfg||cfg.status!=="Connected"||cfg.syncConflict)return;
  clearTimeout(centralSyncTimer);centralSyncTimer=setTimeout(function(){centralSave(true)},1200)
 }
 window.centralSyncNow=function(){centralSave(false)}
 window.centralLoad=async function(){
  try{
-  var resolved=await resolveSchoolMembership(),client=getCentralClient(),schoolId=resolved.membership.school_id;
-  var r=await client.from("app_snapshots").select("state_data,updated_at").eq("school_id",schoolId).maybeSingle();
-  if(r.error)throw r.error;if(!r.data||!r.data.state_data)return toast("No central school data has been saved yet");
-  var keep=state.integrations,loaded=r.data.state_data;state=loaded;state.integrations=Object.assign({},loaded.integrations||{},keep);ensureEnhancedData();
-  state.integrations.supabase.status="Connected";state.integrations.supabase.schoolId=schoolId;state.integrations.supabase.userEmail=resolved.session.user.email||"";state.integrations.supabase.lastSync=r.data.updated_at||"";
-  localStorage.setItem(STORAGE,JSON.stringify(state));render();toast("Loaded central school data")
+  var resolved=await resolveSchoolMembership(),schoolId=resolved.membership.school_id;
+  var result=await protectedFetch("app-sync",{action:"load",schoolId:schoolId});
+  if(!result.state){
+   state.integrations.supabase.revision=Number(result.revision||0);
+   state.integrations.supabase.syncConflict=false;
+   localStorage.setItem(STORAGE,JSON.stringify(state));
+   return toast("No central school data has been saved yet")
+  }
+  var keep=state.integrations,loaded=result.state;state=loaded;state.integrations=Object.assign({},loaded.integrations||{},keep);ensureEnhancedData();
+  state.integrations.supabase.status="Connected";
+  state.integrations.supabase.schoolId=schoolId;
+  state.integrations.supabase.userEmail=resolved.session.user.email||"";
+  state.integrations.supabase.lastSync=result.updatedAt||"";
+  state.integrations.supabase.revision=Number(result.revision||0);
+  state.integrations.supabase.syncConflict=false;
+  state.integrations.supabase.remoteRevision=0;
+  state.integrations.supabase.conflictUpdatedAt="";
+  localStorage.setItem(STORAGE,JSON.stringify(state));render();toast("Loaded central school data · revision "+state.integrations.supabase.revision)
  }catch(e){toast("Could not load central school data")}
 }
 window.saveCentralConfig=function(){
@@ -1121,11 +1158,7 @@ window.saveCentralConfig=function(){
 function providerEndpoint(name){
  var cfg=supaCfg();if(!cfg.projectUrl)return "";return cfg.projectUrl+"/functions/v1/"+name
 }
-async function callProtectedFunction(name,body){
- var client=getCentralClient();if(!client)throw Error("No client");var r=await client.auth.getSession(),session=r.data&&r.data.session;if(!session)throw Error("Sign in first");
- var res=await fetch(providerEndpoint(name),{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+session.access_token,"apikey":supaCfg().anonKey},body:JSON.stringify(body||{})});
- if(!res.ok)throw Error("Function failed");return res.json()
-}
+async function callProtectedFunction(name,body){return protectedFetch(name,body)}
 window.saveStorageConfig=function(){
  var s=state.integrations.storage;s.provider=val("ciStorageProvider");s.driveFolderId=val("ciDrive").trim();s.oneDrivePath=val("ciOne").trim();s.status=s.provider==="None"?"Not connected":"Configured";localStorage.setItem(STORAGE,JSON.stringify(state));render();toast("Evidence storage configuration saved")
 }
@@ -1155,7 +1188,7 @@ function renderIntegrations(){
  var x=state.integrations||{},db=x.supabase||{},st=x.storage||{},m=x.mis||{};
  var h=pageHead("Integration Centre","Central database, school sign-in, evidence storage and MIS synchronisation","");
  h+='<div class="notice privacy" style="margin-bottom:14px"><b>Security:</b> only the Supabase public anon key belongs in this page. Google/Microsoft client secrets, Drive/OneDrive secrets and MIS credentials stay in Supabase/provider configuration or server-side functions.</div>';
- h+='<div class="grid two"><div class="card"><div class="section-title"><h3>Central database & staff login</h3>'+integrationBadge(db.status)+'</div><div class="form-grid"><div class="field full"><label>Supabase project URL</label><input id="ciUrl" value="'+esc(db.projectUrl||"")+'" placeholder="https://project-ref.supabase.co"></div><div class="field full"><label>Supabase public anon key</label><input id="ciKey" value="'+esc(db.anonKey||"")+'" placeholder="Public anon key only"></div></div><div class="actions"><button class="btn primary" onclick="saveCentralConfig()">Save configuration</button><button class="btn" onclick="centralSignIn(\'google\')">Sign in with Google</button><button class="btn" onclick="centralSignIn(\'azure\')">Sign in with Microsoft</button>'+(db.status==="Connected"?'<button class="btn" onclick="centralSignOut()">Sign out</button>':"")+'</div><p class="small muted">Signed in: '+esc(db.userEmail||"No staff account")+(db.schoolId?" · school "+esc(db.schoolId):"")+'</p><div class="actions"><button class="btn" onclick="centralLoad()">Load central data</button><button class="btn" onclick="centralSyncNow()">Sync now</button></div><p class="small muted">Last central sync: '+(db.lastSync?new Date(db.lastSync).toLocaleString("en-GB"):"Never")+'</p></div>';
+ h+='<div class="grid two"><div class="card"><div class="section-title"><h3>Central database & staff login</h3>'+integrationBadge(db.status)+'</div><div class="form-grid"><div class="field full"><label>Supabase project URL</label><input id="ciUrl" value="'+esc(db.projectUrl||"")+'" placeholder="https://project-ref.supabase.co"></div><div class="field full"><label>Supabase public anon key</label><input id="ciKey" value="'+esc(db.anonKey||"")+'" placeholder="Public anon key only"></div></div><div class="actions"><button class="btn primary" onclick="saveCentralConfig()">Save configuration</button><button class="btn" onclick="centralSignIn(\'google\')">Sign in with Google</button><button class="btn" onclick="centralSignIn(\'azure\')">Sign in with Microsoft</button>'+(db.status==="Connected"?'<button class="btn" onclick="centralSignOut()">Sign out</button>':"")+'</div><p class="small muted">Signed in: '+esc(db.userEmail||"No staff account")+(db.schoolId?" · school "+esc(db.schoolId):"")+'</p><div class="actions"><button class="btn" onclick="centralLoad()">Load central data</button><button class="btn" onclick="centralSyncNow()">Sync now</button></div><p class="small muted">Last central sync: '+(db.lastSync?new Date(db.lastSync).toLocaleString("en-GB"):"Never")+' · revision '+esc(db.revision||0)+'</p>'+(db.syncConflict?'<div class="notice" style="margin-top:10px"><b>Sync conflict detected.</b> Another signed-in user saved a newer central revision'+(db.remoteRevision?" ("+esc(db.remoteRevision)+")":"")+'. Download a local backup if needed, then load central data before making further edits.<div class="actions" style="margin-top:8px"><button class="btn" onclick="exportBackup()">Download local backup</button><button class="btn primary" onclick="centralLoad()">Load latest central data</button></div></div>':"")+'</div>';
  h+='<div class="card"><div class="section-title"><h3>How school login works</h3></div><ol class="small"><li>Google and/or Microsoft provider is enabled in Supabase Auth.</li><li>Staff authenticate with their school account.</li><li>Row-level security checks their school membership and role.</li><li>All authorised staff in the same school share the central EAL dataset.</li></ol><div class="notice">A school administrator must add initial staff memberships in the database before they can access shared data.</div></div></div>';
  h+='<div class="grid two" style="margin-top:14px"><div class="card"><div class="section-title"><h3>Drive / OneDrive evidence storage</h3>'+integrationBadge(st.status)+'</div><div class="form-grid"><div class="field"><label>Provider</label><select id="ciStorageProvider">'+["None","Google Drive","OneDrive"].map(function(v){return '<option '+(st.provider===v?"selected":"")+'>'+v+'</option>'}).join("")+'</select></div><div class="field"><label>Google Drive folder ID</label><input id="ciDrive" value="'+esc(st.driveFolderId||"")+'"></div><div class="field full"><label>OneDrive base folder/path</label><input id="ciOne" value="'+esc(st.oneDrivePath||"")+'"></div></div><div class="actions"><button class="btn primary" onclick="saveStorageConfig()">Save</button><button class="btn" onclick="testStorageConnection()">Test server function</button></div><p class="small muted">Actual pupil documents are uploaded by an authenticated server/Edge Function so provider secrets and refresh tokens are not exposed to the browser.</p></div>';
  h+='<div class="card"><div class="section-title"><h3>MIS sync</h3>'+integrationBadge(m.status)+'</div><div class="form-grid"><div class="field"><label>Provider</label><select id="ciMisProvider">'+["None","SIMS","Arbor","Bromcom","iSAMS"].map(function(v){return '<option '+(m.provider===v?"selected":"")+'>'+v+'</option>'}).join("")+'</select></div><div class="field full"><label>Optional provider/API base URL</label><input id="ciMisUrl" value="'+esc(m.backendUrl||"")+'"></div></div><div class="actions"><button class="btn primary" onclick="saveMisConfig()">Save</button><button class="btn" onclick="runMisSync()">Run sync</button></div><p class="small muted">Sync contract: external pupil ID, name, preferred name, DOB, year, form, admission date, first language and attendance. Provider credentials remain server-side.</p><p class="small muted">Last MIS sync: '+(m.lastSync?new Date(m.lastSync).toLocaleString("en-GB"):"Never")+'</p></div></div>';
