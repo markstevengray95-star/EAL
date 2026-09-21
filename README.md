@@ -24,3 +24,9 @@ The first version stores data in the browser's local storage so it works immedia
 All demo pupils are fictional.
 
 Deployment refresh: GitHub Pages enabled.
+
+## Deploy on Vercel
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/project?template=https://github.com/markstevengray95-star/EAL)
+
+Use the button above to import this repository into Vercel and create a live deployment.
