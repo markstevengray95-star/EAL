@@ -49,8 +49,15 @@ dialog{width:min(720px,94vw);border:0;border-radius:16px;padding:0;box-shadow:0 
     <button data-view="interventions">◇ Interventions</button>
     <button data-view="observations">◉ Observations</button>
     <button data-view="reviews">✓ Reviews</button>
-    <button data-view="cohorts">▦ Cohorts</button>
+    <button data-view="provision">▥ Provision Map</button>
+    <button data-view="teacher">▣ Teacher / Class View</button>
+    <button data-view="calendar">◷ Calendar & Reminders</button>
+    <button data-view="tasks">☑ Staff Tasks</button>
+    <button data-view="impact">↗ Intervention Impact</button>
+    <button data-view="ealtest">✦ EAL Test</button>
+    <button data-view="cohorts">▦ Cohorts & Heatmap</button>
     <button data-view="reports">▧ Reports</button>
+    <button data-view="tools">⚒ Tools & Rollover</button>
     <div class="sep"></div>
     <button data-view="archive">⌁ Archive</button>
     <button data-view="settings">⚙ Settings & Privacy</button>
@@ -136,7 +143,7 @@ function demo(){
  }
 }
 
-function load(){try{var s=JSON.parse(localStorage.getItem(STORAGE));state=s&&s.students?s:demo()}catch(e){state=demo()}ui.role=localStorage.getItem("ealRole")||"Administrator";document.getElementById("roleSelect").value=ui.role}
+function load(){try{var s=JSON.parse(localStorage.getItem(STORAGE));state=s&&s.students?s:demo()}catch(e){state=demo()}ensureEnhancedData();ui.role=localStorage.getItem("ealRole")||"Administrator";document.getElementById("roleSelect").value=ui.role}
 function setView(v){ui.view=v;ui.studentId=null;document.querySelectorAll("#nav button").forEach(function(b){b.classList.toggle("active",b.dataset.view===v)});render()}
 function pageHead(title,sub,actions){return '<div class="page-head"><div><h2>'+esc(title)+'</h2><p>'+esc(sub||"")+'</p></div><div class="actions">'+(actions||"")+'</div></div>'}
 function badge(text,type){return '<span class="badge '+(type||"")+'">'+esc(text)+'</span>'}
@@ -399,6 +406,158 @@ window.resetDemo=function(){if(!confirm("Replace current browser data with ficti
 
 function globalSearch(q){q=q.trim().toLowerCase();if(!q)return;var found=currentStudents().find(function(s){return [s.name,s.firstLanguage,s.year,s.form].join(" ").toLowerCase().indexOf(q)>-1});if(found)openStudent(found.id);else toast("No matching student found")}
 
+
+function ensureEnhancedData(){
+ state.settings=state.settings||{};
+ if(state.settings.schoolLogo===undefined)state.settings.schoolLogo="";
+ if(state.settings.parentReportLanguage===undefined)state.settings.parentReportLanguage="English";
+ if(state.settings.mobileQuickEntry===undefined)state.settings.mobileQuickEntry=true;
+ state.tasks=state.tasks||[];
+ state.restorePoints=state.restorePoints||[];
+ state.staffAccounts=state.staffAccounts||[
+  {id:"staff-eal",name:"EAL Coordinator",role:"EAL Coordinator",active:true},
+  {id:"staff-teacher",name:"Class Teacher",role:"Teacher",active:true},
+  {id:"staff-slt",name:"Senior Leadership",role:"Senior Leadership",active:true}
+ ];
+ currentStudents().forEach(function(s){
+  s.communicationLog=s.communicationLog||[];
+  s.readingLog=s.readingLog||[];
+  s.evidence=s.evidence||[];
+  s.voiceHistory=s.voiceHistory||[];
+  s.ealTests=s.ealTests||[];
+  s.attendance=s.attendance||{percent:"",note:""};
+  s.newArrival=s.newArrival||{languageBackground:false,previousSchooling:false,baseline:false,readingAge:false,parentContact:false,strategies:false,firstReview:false};
+  s.additionalNeedsEvidence=s.additionalNeedsEvidence||[];
+  s.parentReportLanguage=s.parentReportLanguage||state.settings.parentReportLanguage||"English";
+  s.subjectProgress=s.subjectProgress||{};
+  s.vocab=s.vocab||[];
+  s.strategies=s.strategies||[];
+  s.history=s.history||[];
+  (s.interventions||[]).forEach(function(i){if(i.impactRating===undefined)i.impactRating="Not reviewed";if(i.outcome===undefined)i.outcome=""});
+ })
+}
+function addMonths(dateStr,n){var d=new Date(dateStr+"T00:00:00");if(isNaN(d))return "";d.setMonth(d.getMonth()+Number(n||0));return d.toISOString().slice(0,10)}
+function completenessScore(s){
+ var checks=[s.name,s.dob,s.firstLanguage,s.admissionDate,s.keyStaff,readingLatest(s),s.nextReview,(s.assessments||[]).length,(s.targets||[]).length,(s.strategies||[]).length,(s.communicationLog||[]).length];
+ return Math.round(checks.filter(function(x){return !!x}).length/checks.length*100)
+}
+function suggestedNextAction(s){
+ if(!(s.assessments||[]).length)return "Complete baseline EAL assessment";
+ if(readingDue(s))return "Reassess reading age";
+ if(reviewDue(s))return "Complete EAL review";
+ if(interventionDue(s))return "Review intervention impact";
+ if(targetDue(s))return "Review current target";
+ if(!(s.communicationLog||[]).length)return "Record parent/carer communication";
+ return "Continue monitoring classroom evidence"
+}
+function activeIntervention(s){return (s.interventions||[]).filter(function(i){return i.status!=="Completed"})[0]||null}
+function renderProvision(){
+ var h=pageHead("EAL Provision Map","One-screen overview of current provision, ownership, targets and review dates",roleCanEdit()?'<button class="btn primary" onclick="openNewArrival()">+ New arrival</button>':"");
+ h+='<div class="table-wrap"><table><thead><tr><th>Student</th><th>Year</th><th>Stage</th><th>Current provision</th><th>Frequency</th><th>Key staff</th><th>Current target</th><th>Review</th><th>Next action</th></tr></thead><tbody>';
+ currentStudents().forEach(function(s){var i=activeIntervention(s),t=(s.targets||[]).filter(function(x){return x.status!=="Completed"})[0];h+='<tr><td><span class="link" onclick="openStudent(\''+s.id+'\')">'+esc(s.name)+'</span></td><td>'+esc(s.year)+'</td><td>'+badge(levelFromSkills(s.proficiency),"brand")+'</td><td>'+esc(i?i.name:"Universal classroom support")+'</td><td>'+esc(i?i.frequency:"In-class")+'</td><td>'+esc(s.keyStaff||"—")+'</td><td>'+esc(t?t.text:"No active target")+'</td><td>'+dateText(i&&i.reviewDate?i.reviewDate:s.nextReview)+'</td><td>'+esc(suggestedNextAction(s))+'</td></tr>'});
+ return h+'</tbody></table></div>'
+}
+function teacherStrategyCard(s){
+ var strat=(s.strategies||[]).slice(0,5);
+ return '<div class="card"><div class="section-title"><h3><span class="link" onclick="openStudent(\''+s.id+'\')">'+esc(s.name)+'</span></h3>'+badge(levelFromSkills(s.proficiency),"brand")+'</div><div class="small muted">'+esc(s.year+" · "+s.form)+' · '+(ui.privacy?"language hidden":esc(s.firstLanguage))+'</div><p class="small"><b>Current target:</b> '+esc(((s.targets||[]).filter(function(t){return t.status!=="Completed"})[0]||{}).text||"No active target")+'</p><div class="small"><b>Classroom strategies</b><ul>'+strat.map(function(x){return "<li>"+esc(x)+"</li>"}).join("")+'</ul></div><div class="notice" style="margin-top:8px"><b>Next action:</b> '+esc(suggestedNextAction(s))+'</div></div>'
+}
+function renderTeacherView(){
+ var years=["All"].concat(Array.from(new Set(currentStudents().map(function(s){return s.year}))).sort());
+ var subjects=["All","Science","Maths","English","Humanities","Geography","History"];
+ var h=pageHead("Teacher / Class View","Fast classroom view with only the information teachers need",roleCanEdit()?'<button class="btn primary" onclick="openObservation()">+ Quick observation</button>':"");
+ h+='<div class="filters"><select onchange="ui.teacherYear=this.value;render()">'+years.map(function(y){return '<option '+((ui.teacherYear||"All")===y?"selected":"")+'>'+y+'</option>'}).join("")+'</select><select onchange="ui.teacherSubject=this.value;render()">'+subjects.map(function(y){return '<option '+((ui.teacherSubject||"All")===y?"selected":"")+'>'+y+'</option>'}).join("")+'</select><input placeholder="Search by pupil, language, need or strategy…" value="'+esc(ui.needQuery||"")+'" oninput="ui.needQuery=this.value;render()"></div>';
+ var q=(ui.needQuery||"").toLowerCase(),list=currentStudents().filter(function(s){
+  if((ui.teacherYear||"All")!=="All"&&s.year!==ui.teacherYear)return false;
+  if((ui.teacherSubject||"All")!=="All"&&!s.subjectProgress[ui.teacherSubject])return false;
+  if(!q)return true;
+  return [s.name,s.firstLanguage,s.development,(s.strategies||[]).join(" "),suggestedNextAction(s)].join(" ").toLowerCase().indexOf(q)>-1
+ });
+ h+='<div class="grid three">'+list.map(teacherStrategyCard).join("")+'</div>';
+ return h
+}
+function calendarItems(){
+ var a=[];currentStudents().forEach(function(s){
+  if(s.nextReview)a.push({date:s.nextReview,type:"EAL review",student:s});
+  var r=readingLatest(s);if(r)a.push({date:addMonths(r.date,state.settings.readingIntervalMonths||3),type:"Reading reassessment",student:s});
+  (s.interventions||[]).filter(function(i){return i.status!=="Completed"&&i.reviewDate}).forEach(function(i){a.push({date:i.reviewDate,type:"Intervention review",student:s})});
+  (s.targets||[]).filter(function(t){return t.status!=="Completed"&&t.reviewDate}).forEach(function(t){a.push({date:t.reviewDate,type:"Target review",student:s})})
+ });
+ (state.tasks||[]).filter(function(t){return t.status!=="Completed"&&t.dueDate}).forEach(function(t){var s=studentById(t.studentId);a.push({date:t.dueDate,type:"Staff task: "+t.title,student:s})});
+ return a.filter(function(x){return x.date}).sort(function(x,y){return x.date.localeCompare(y.date)})
+}
+function renderCalendar(){
+ var items=calendarItems(),now=today(),soon=addMonths(now,1);
+ var h=pageHead("Assessment Calendar & Reminders","Upcoming assessments, reviews, targets, interventions and staff actions",roleCanEdit()?'<button class="btn primary" onclick="openTask()">+ Add reminder/task</button>':"");
+ h+='<div class="grid three"><div class="card kpi"><small>Overdue</small><strong>'+items.filter(function(x){return x.date<now}).length+'</strong><span>Needs attention</span></div><div class="card kpi"><small>Next 30 days</small><strong>'+items.filter(function(x){return x.date>=now&&x.date<=soon}).length+'</strong><span>Upcoming actions</span></div><div class="card kpi"><small>Total scheduled</small><strong>'+items.length+'</strong><span>Across current pupils</span></div></div>';
+ h+='<div class="table-wrap"><table><thead><tr><th>Date</th><th>Student</th><th>Action</th><th>Status</th></tr></thead><tbody>'+items.map(function(x){var st=x.date<now?badge("Overdue","danger"):x.date<=soon?badge("Soon","warn"):badge("Planned","ok");return '<tr><td>'+dateText(x.date)+'</td><td>'+(x.student?'<span class="link" onclick="openStudent(\''+x.student.id+'\')">'+esc(x.student.name)+'</span>':"Whole-school")+'</td><td>'+esc(x.type)+'</td><td>'+st+'</td></tr>'}).join("")+'</tbody></table></div>';
+ return h
+}
+function renderTasks(){
+ var h=pageHead("Staff Tasks","Assign and track EAL follow-up actions",roleCanEdit()?'<button class="btn primary" onclick="openTask()">+ Assign task</button>':"");
+ var tasks=(state.tasks||[]).slice().sort(function(a,b){return String(a.dueDate).localeCompare(String(b.dueDate))});
+ h+='<div class="table-wrap"><table><thead><tr><th>Task</th><th>Student</th><th>Assigned to</th><th>Due</th><th>Priority</th><th>Status</th><th></th></tr></thead><tbody>'+tasks.map(function(t){var s=studentById(t.studentId);return '<tr><td>'+esc(t.title)+'</td><td>'+esc(s?s.name:"Whole-school")+'</td><td>'+esc(t.assignedTo||"EAL Team")+'</td><td>'+dateText(t.dueDate)+'</td><td>'+badge(t.priority||"Normal",t.priority==="High"?"danger":t.priority==="Medium"?"warn":"")+'</td><td>'+badge(t.status||"Open",t.status==="Completed"?"ok":"brand")+'</td><td>'+(roleCanEdit()&&t.status!=="Completed"?'<button class="btn" onclick="completeTask(\''+t.id+'\')">Complete</button>':"")+'</td></tr>'}).join("")+'</tbody></table></div>';
+ return h
+}
+function renderImpact(){
+ var rows=[];currentStudents().forEach(function(s){(s.interventions||[]).forEach(function(i){rows.push({s:s,i:i,p:readingProgress(s)})})});
+ var h=pageHead("Intervention Impact Dashboard","Compare intervention baseline, outcomes and wider progress evidence","");
+ h+='<div class="notice" style="margin-bottom:12px">Impact indicators are evidence for review, not proof that one intervention caused a change. Consider attendance, classroom evidence and assessment context.</div>';
+ h+='<div class="table-wrap"><table><thead><tr><th>Student</th><th>Intervention</th><th>Baseline</th><th>Reading progress</th><th>Outcome evidence</th><th>Impact rating</th><th>Review</th></tr></thead><tbody>'+rows.map(function(x){return '<tr><td><span class="link" onclick="openStudent(\''+x.s.id+'\',\'interventions\')">'+esc(x.s.name)+'</span></td><td>'+esc(x.i.name)+'</td><td>'+esc(x.i.baseline||"—")+'</td><td>'+(x.p?((x.p.gain>0?"+":"")+x.p.gain+" months; "+x.p.rate.toFixed(1)+" mo/mo"):"Insufficient reading data")+'</td><td>'+esc(x.i.outcome||"Awaiting review")+'</td><td>'+badge(x.i.impactRating||"Not reviewed",(x.i.impactRating||"").indexOf("Strong")>-1?"ok":"")+'</td><td>'+dateText(x.i.reviewDate)+'</td></tr>'}).join("")+'</tbody></table></div>';
+ return h
+}
+function testAverage(t){var vals=skills.map(function(k){return Number((t.skills||{})[k])||0}).filter(Boolean);return vals.length?vals.reduce(function(a,b){return a+b},0)/vals.length:0}
+function renderEalTest(){
+ var all=[];currentStudents().forEach(function(s){(s.ealTests||[]).forEach(function(t){all.push({s:s,t:t})})});all.sort(function(a,b){return String(b.t.date).localeCompare(String(a.t.date))});
+ var h=pageHead("EAL Test","Original school EAL screening and progress checks across eight language domains",roleCanEdit()?'<button class="btn primary" onclick="openEalTest()">+ Start EAL test</button>':"");
+ h+='<div class="notice" style="margin-bottom:12px"><b>Important:</b> This is a school-built progress check, not a diagnostic test. Use the result alongside classroom observations, reading data, prior schooling and professional judgement.</div>';
+ h+='<div class="grid three"><div class="card"><h3>Baseline check</h3><p class="small muted">Use for a new arrival or first school profile. Rate all eight domains and record evidence.</p><button class="btn" onclick="openEalTest(null,\'Baseline\')">Start baseline</button></div><div class="card"><h3>Quick progress check</h3><p class="small muted">Short teacher-administered review between formal assessments.</p><button class="btn" onclick="openEalTest(null,\'Quick Progress\')">Start quick check</button></div><div class="card"><h3>Term review test</h3><p class="small muted">Repeatable termly profile for comparing domain scores over time.</p><button class="btn" onclick="openEalTest(null,\'Term Review\')">Start term review</button></div></div>';
+ h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Test history</h3><span class="small muted">'+all.length+' saved checks</span></div><div class="table-wrap"><table><thead><tr><th>Date</th><th>Student</th><th>Type</th><th>Average</th><th>Stage</th><th>Evidence / notes</th></tr></thead><tbody>'+all.map(function(x){return '<tr><td>'+dateText(x.t.date)+'</td><td><span class="link" onclick="openStudent(\''+x.s.id+'\',\'eal\')">'+esc(x.s.name)+'</span></td><td>'+esc(x.t.type)+'</td><td>'+testAverage(x.t).toFixed(1)+'/5</td><td>'+badge(levelFromSkills(x.t.skills),"brand")+'</td><td>'+esc(x.t.notes||"—")+'</td></tr>'}).join("")+'</tbody></table></div></div>';
+ return h
+}
+function renderTools(){
+ var avg=currentStudents().length?Math.round(currentStudents().reduce(function(n,s){return n+completenessScore(s)},0)/currentStudents().length):0;
+ var h=pageHead("Tools & Academic Year Rollover","Bulk administration, data completeness, restore points and integration readiness","");
+ h+='<div class="grid three"><div class="card"><h3>Data completeness</h3><div class="score">'+avg+'%</div><p class="small muted">Average across current pupil profiles.</p><button class="btn" onclick="setView(\'students\')">Review profiles</button></div><div class="card"><h3>Academic year rollover</h3><p class="small muted">Move year groups forward while retaining all historical data.</p><button class="btn '+(roleCanAdmin()?"primary":"")+'" '+(roleCanAdmin()?"onclick=\"rolloverYear()\"":"disabled")+' >Run rollover</button></div><div class="card"><h3>Termly report pack</h3><p class="small muted">Printable whole-school summary plus individual pupil pages.</p><button class="btn" onclick="printTermlyPack()">Create pack</button></div></div>';
+ h+='<div class="grid two" style="margin-top:14px"><div class="card"><div class="section-title"><h3>Bulk actions</h3></div><div class="actions"><button class="btn" onclick="bulkReviewDates()">Set review dates</button><button class="btn" onclick="exportCsv()">Export CSV</button><button class="btn" onclick="importCsv()">Import CSV</button><button class="btn" onclick="createRestorePoint()">Create restore point</button></div><p class="small muted">CSV import/export provides a simple route for MIS preparation. A production MIS connection still requires an approved school-system integration and authentication.</p></div><div class="card"><div class="section-title"><h3>Integration readiness</h3></div><div class="priority"><div><b>SIMS / Arbor / Bromcom / iSAMS</b><span>Data model ready for pupil identifiers, year, form, language, attendance and review fields.</span></div></div><div class="priority"><div><b>Google Drive / OneDrive</b><span>Reports and evidence can be exported now; automatic secure cloud filing requires school-approved sign-in.</span></div></div><div class="priority"><div><b>Staff accounts</b><span>Role views are available in this prototype. Real authenticated staff accounts require a secure backend.</span></div></div></div></div>';
+ h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Profile completeness</h3></div><div class="table-wrap"><table><thead><tr><th>Student</th><th>Complete</th><th>Next action</th><th>Attendance context</th></tr></thead><tbody>'+currentStudents().map(function(s){return '<tr><td><span class="link" onclick="openStudent(\''+s.id+'\')">'+esc(s.name)+'</span></td><td>'+badge(completenessScore(s)+"%",completenessScore(s)<70?"warn":"ok")+'</td><td>'+esc(suggestedNextAction(s))+'</td><td>'+esc(s.attendance.percent?s.attendance.percent+"%":"Not entered")+'</td></tr>'}).join("")+'</tbody></table></div></div>';
+ return h
+}
+window.openNewArrival=function(){
+ modal("New arrival workflow",'<div class="notice">Creates the pupil profile and a guided onboarding checklist.</div><div class="form-grid"><div class="field full"><label>Student name</label><input id="naName"></div><div class="field"><label>Year group</label><select id="naYear">'+["Year 7","Year 8","Year 9","Year 10","Year 11","Year 12","Year 13"].map(function(x){return "<option>"+x+"</option>"}).join("")+'</select></div><div class="field"><label>Form</label><input id="naForm"></div><div class="field"><label>Date of birth</label><input id="naDob" type="date"></div><div class="field"><label>Admission date</label><input id="naAdmission" type="date" value="'+today()+'"></div><div class="field"><label>First language</label><input id="naLang"></div><div class="field"><label>Country / prior education context</label><input id="naCountry"></div><div class="field full"><label>Previous schooling / notes</label><textarea id="naSchool"></textarea></div></div>',"Create onboarding record",function(){
+  var name=val("naName").trim();if(!name)return toast("Enter a student name");
+  var s={id:uid("stu"),name:name,preferredName:name.split(" ")[0],year:val("naYear"),form:val("naForm"),dob:val("naDob"),admissionDate:val("naAdmission"),firstLanguage:val("naLang"),otherLanguages:[],country:val("naCountry"),ukEntry:"",previousSchooling:val("naSchool"),keyStaff:"EAL Team",strengths:"To establish during onboarding.",development:"Baseline profile required.",notes:"New arrival onboarding record.",archived:false,nextReview:addMonths(today(),2),proficiency:{listening:1,speaking:1,reading:1,writing:1,vocabulary:1,grammar:1,academic:1,classroom:1},readingAssessments:[],targets:[],interventions:[],observations:[],assessments:[],reviews:[],studentVoice:{},strategies:["Use visuals and modelling","Pre-teach essential vocabulary","Check understanding privately","Allow processing time"],vocab:[],subjectProgress:{},evidence:[],communicationLog:[],readingLog:[],voiceHistory:[],ealTests:[],attendance:{percent:"",note:""},newArrival:{languageBackground:false,previousSchooling:!!val("naSchool"),baseline:false,readingAge:false,parentContact:false,strategies:true,firstReview:true},additionalNeedsEvidence:[],parentReportLanguage:state.settings.parentReportLanguage||"English",history:[]};
+  state.students.push(s);state.tasks.push({id:uid("task"),title:"Complete new-arrival baseline assessment",studentId:s.id,assignedTo:"EAL Team",dueDate:addMonths(today(),1),priority:"High",status:"Open"});save("Created new-arrival workflow for "+s.name);closeModal();openStudent(s.id);toast("New arrival profile created")
+ })
+}
+window.openTask=function(studentId){
+ modal("Assign EAL task",'<div class="form-grid"><div class="field full"><label>Task</label><input id="taskTitle"></div><div class="field"><label>Student (optional)</label><select id="taskStudent"><option value="">Whole-school</option>'+studentOptions(studentId)+'</select></div><div class="field"><label>Assigned to</label><input id="taskStaff" value="EAL Team"></div><div class="field"><label>Due date</label><input id="taskDue" type="date"></div><div class="field"><label>Priority</label><select id="taskPriority"><option>Normal</option><option>Medium</option><option>High</option></select></div></div>',"Assign task",function(){if(!val("taskTitle").trim())return toast("Enter a task");state.tasks.push({id:uid("task"),title:val("taskTitle"),studentId:val("taskStudent"),assignedTo:val("taskStaff"),dueDate:val("taskDue"),priority:val("taskPriority"),status:"Open"});save("Assigned EAL task: "+val("taskTitle"));closeModal();render();toast("Task assigned")})
+}
+window.completeTask=function(id){var t=(state.tasks||[]).find(function(x){return x.id===id});if(!t)return;t.status="Completed";t.completedDate=today();save("Completed task: "+t.title);render()}
+window.openEalTest=function(studentId,type){
+ var rubric='<div class="notice" style="margin-bottom:10px">Score 1–5 using the same school descriptors: 1 = substantial support/new to English, 3 = developing independence, 5 = consistently independent/fluent in the assessed context.</div><div class="form-grid">'+skills.map(function(k){return '<div class="field"><label>'+esc(skillLabels[k])+'</label><select id="test_'+k+'"><option value="1">1 - substantial support</option><option value="2">2 - emerging</option><option value="3" selected>3 - developing</option><option value="4">4 - mostly independent</option><option value="5">5 - consistently independent</option></select></div>'}).join("")+'</div>';
+ modal("EAL Test",'<div class="form-grid"><div class="field full"><label>Student</label><select id="testStudent">'+studentOptions(studentId)+'</select></div><div class="field"><label>Test type</label><select id="testType">'+["Baseline","Quick Progress","Term Review"].map(function(x){return '<option '+(type===x?"selected":"")+'>'+x+'</option>'}).join("")+'</select></div><div class="field"><label>Assessor</label><input id="testAssessor" value="EAL Team"></div></div>'+rubric+'<div class="field" style="margin-top:10px"><label>Evidence / notes</label><textarea id="testNotes" placeholder="Brief examples from speaking, listening, reading, writing or classroom tasks"></textarea></div><div class="field"><label><input type="checkbox" id="testUpdateProfile"> Update current EAL profile with these domain scores</label></div>',"Save EAL test",function(){var s=studentById(val("testStudent"));if(!s)return;var sk={};skills.forEach(function(k){sk[k]=Number(val("test_"+k))||1});var t={id:uid("test"),date:today(),type:val("testType"),assessor:val("testAssessor"),skills:sk,notes:val("testNotes")};s.ealTests=s.ealTests||[];s.ealTests.push(t);if(document.getElementById("testUpdateProfile").checked){s.proficiency=Object.assign({},sk);s.assessments=s.assessments||[];s.assessments.push({id:uid("ass"),date:today(),skills:Object.assign({},sk),assessor:t.assessor,notes:"Profile updated from "+t.type+" EAL test"})}save("Saved "+t.type+" EAL test for "+s.name);closeModal();render();toast("EAL test saved")})
+}
+window.createRestorePoint=function(){
+ var snap={id:uid("restore"),date:new Date().toISOString(),label:"Manual restore point",data:JSON.stringify({settings:state.settings,students:state.students,archive:state.archive,tasks:state.tasks,staffAccounts:state.staffAccounts})};state.restorePoints=state.restorePoints||[];state.restorePoints.unshift(snap);state.restorePoints=state.restorePoints.slice(0,5);save("Created restore point");toast("Restore point created")
+}
+window.bulkReviewDates=function(){
+ modal("Bulk review dates",'<div class="field"><label>Set next EAL review date for all current pupils</label><input id="bulkReview" type="date"></div><div class="notice">This updates the next-review field only. Existing review history is retained.</div>',"Update dates",function(){var d=val("bulkReview");if(!d)return;createRestorePoint();currentStudents().forEach(function(s){s.nextReview=d});save("Bulk-updated next EAL review dates");closeModal();render();toast("Review dates updated")})
+}
+window.rolloverYear=function(){
+ if(!roleCanAdmin())return toast("Administrator access required");
+ createRestorePoint();
+ var changed=0;
+ currentStudents().forEach(function(s){var m=String(s.year).match(/Year (\d+)/);if(m){var n=Number(m[1]);if(n<13){s.year="Year "+(n+1);changed++}else{s.notes=(s.notes||"")+" | Reached end of Year 13; review leaver/archive status."}}});
+ var y=String(state.settings.academicYear||"").match(/(\d{4})\/(\d{2})/);if(y)state.settings.academicYear=(Number(y[1])+1)+"/"+String(Number(y[2])+1).padStart(2,"0");
+ save("Completed academic year rollover for "+changed+" pupils");render();toast("Academic year rollover complete")
+}
+window.printTermlyPack=function(){
+ var ss=currentStudents(),w=window.open("","_blank");if(!w)return toast("Allow pop-ups to create the report pack");
+ var html='<html><head><title>EAL Termly Report Pack</title><style>body{font-family:Arial,sans-serif;color:#1f2937;margin:30px}h1,h2{color:#1f4d3c}.page{page-break-after:always}.box{border:1px solid #ddd;padding:12px;margin:10px 0}table{width:100%;border-collapse:collapse}th,td{padding:7px;border-bottom:1px solid #ddd;text-align:left;font-size:12px}</style></head><body><div class="page"><h1>'+esc(state.settings.schoolName)+' - EAL Termly Report Pack</h1><p>'+esc(state.settings.academicYear)+' · '+dateText(today())+'</p><div class="box"><b>Current EAL pupils:</b> '+ss.length+'<br><b>Priority actions:</b> '+getPriorities().length+'<br><b>Reading reassessments due:</b> '+ss.filter(readingDue).length+'</div></div>';
+ ss.forEach(function(s){var r=readingLatest(s),i=activeIntervention(s);html+='<div class="page"><h2>'+esc(s.name)+'</h2><p>'+esc(s.year+" · "+s.form)+' · '+esc(levelFromSkills(s.proficiency))+'</p><div class="box"><b>Strengths:</b> '+esc(s.strengths||"—")+'<br><b>Development:</b> '+esc(s.development||"—")+'<br><b>Reading age:</b> '+(r?ageText(r.readingMonths):"Not recorded")+'<br><b>Current provision:</b> '+esc(i?i.name:"Universal classroom support")+'<br><b>Next action:</b> '+esc(suggestedNextAction(s))+'</div></div>'});
+ w.document.write(html+'</body></html>');w.document.close();setTimeout(function(){w.print()},200)
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
@@ -409,8 +568,15 @@ function render(){
  else if(ui.view==="interventions")html=renderInterventions();
  else if(ui.view==="observations")html=renderObservations();
  else if(ui.view==="reviews")html=renderReviews();
+ else if(ui.view==="provision")html=renderProvision();
+ else if(ui.view==="teacher")html=renderTeacherView();
+ else if(ui.view==="calendar")html=renderCalendar();
+ else if(ui.view==="tasks")html=renderTasks();
+ else if(ui.view==="impact")html=renderImpact();
+ else if(ui.view==="ealtest")html=renderEalTest();
  else if(ui.view==="cohorts")html=renderCohorts();
  else if(ui.view==="reports")html=renderReports();
+ else if(ui.view==="tools")html=renderTools();
  else if(ui.view==="archive")html=renderArchive();
  else if(ui.view==="settings")html=renderSettings();
  c.innerHTML=html;
