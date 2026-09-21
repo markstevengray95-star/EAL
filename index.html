@@ -273,20 +273,111 @@ function renderSettings(){
  return h
 }
 
+
+function termSummary(s){
+ var r=readingProgress(s),t=(s.targets||[]).filter(function(x){return x.status!=="Completed"})[0],i=activeIntervention(s);
+ var out=s.name+" is currently working at the "+levelFromSkills(s.proficiency)+" EAL stage.";
+ if(r)out+=" Latest reading progress: "+(r.gain>0?"+":"")+r.gain+" months over "+r.elapsed+" months.";
+ if(t)out+=" Current target: "+t.text;
+ if(i)out+=" Current provision: "+i.name+" ("+i.frequency+").";
+ return out+" Next action: "+suggestedNextAction(s)+"."
+}
+window.openEditStudent=function(id){
+ var s=studentById(id);if(!s)return;
+ modal("Edit student details",'<div class="form-grid"><div class="field full"><label>Name</label><input id="edName" value="'+esc(s.name)+'"></div><div class="field"><label>Preferred name</label><input id="edPreferred" value="'+esc(s.preferredName||"")+'"></div><div class="field"><label>Year</label><input id="edYear" value="'+esc(s.year||"")+'"></div><div class="field"><label>Form</label><input id="edForm" value="'+esc(s.form||"")+'"></div><div class="field"><label>Date of birth</label><input id="edDob" type="date" value="'+esc(s.dob||"")+'"></div><div class="field"><label>Admission date</label><input id="edAdmission" type="date" value="'+esc(s.admissionDate||"")+'"></div><div class="field"><label>First language</label><input id="edLang" value="'+esc(s.firstLanguage||"")+'"></div><div class="field"><label>Country/background</label><input id="edCountry" value="'+esc(s.country||"")+'"></div><div class="field"><label>Key staff</label><input id="edStaff" value="'+esc(s.keyStaff||"")+'"></div><div class="field"><label>Next review</label><input id="edReview" type="date" value="'+esc(s.nextReview||"")+'"></div><div class="field full"><label>Previous schooling</label><textarea id="edSchool">'+esc(s.previousSchooling||"")+'</textarea></div><div class="field full"><label>Strengths</label><textarea id="edStrengths">'+esc(s.strengths||"")+'</textarea></div><div class="field full"><label>Development priorities</label><textarea id="edDevelopment">'+esc(s.development||"")+'</textarea></div></div>',"Save changes",function(){
+  s.name=val("edName")||s.name;s.preferredName=val("edPreferred");s.year=val("edYear");s.form=val("edForm");s.dob=val("edDob");s.admissionDate=val("edAdmission");s.firstLanguage=val("edLang");s.country=val("edCountry");s.keyStaff=val("edStaff");s.nextReview=val("edReview");s.previousSchooling=val("edSchool");s.strengths=val("edStrengths");s.development=val("edDevelopment");save("Edited student details for "+s.name);closeModal();render();toast("Student details updated")
+ })
+}
+function studentLearning(s){
+ var vocab=s.vocab||[],logs=(s.readingLog||[]).slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date))});
+ var h='<div class="grid two"><div class="card"><div class="section-title"><h3>Vocabulary bank</h3>'+(roleCanEdit()?'<button class="btn" onclick="openVocabulary(\''+s.id+'\')">+ Add term</button>':"")+'</div>';
+ h+=vocab.length?'<div class="table-wrap"><table><thead><tr><th>Term</th><th>Type</th><th>Subject</th><th>Status</th></tr></thead><tbody>'+vocab.map(function(v){return '<tr><td>'+esc(v.term)+'</td><td>'+esc(v.type||"")+'</td><td>'+esc(v.subject||"")+'</td><td>'+badge(v.status||"Emerging",v.status==="Secure"?"ok":"brand")+'</td></tr>'}).join("")+'</tbody></table></div>':'<div class="empty">No vocabulary terms recorded.</div>';
+ h+='</div><div class="card"><div class="section-title"><h3>Reading log</h3>'+(roleCanEdit()?'<button class="btn" onclick="openReadingLog(\''+s.id+'\')">+ Entry</button>':"")+'</div>';
+ if(!logs.length)h+='<div class="empty">No reading-log entries yet.</div>';else logs.slice(0,12).forEach(function(x){h+='<div class="priority"><div><b>'+dateText(x.date)+' · '+esc(x.title)+'</b><span>Comprehension: '+esc(x.comprehension||"—")+' · Vocabulary: '+esc(x.vocabulary||"—")+' · '+esc(x.note||"")+'</span></div></div>'});
+ h+='</div></div><div class="card" style="margin-top:14px"><div class="section-title"><h3>Subject language progress</h3>'+(roleCanEdit()?'<button class="btn" onclick="openSubjectProgress(\''+s.id+'\')">Update</button>':"")+'</div><div class="grid four">'+Object.keys(s.subjectProgress||{}).map(function(k){return '<div class="lang-card"><strong>'+esc(s.subjectProgress[k])+'</strong><span class="small muted">'+esc(k)+'</span></div>'}).join("")+'</div></div>';
+ return h
+}
+window.openVocabulary=function(id){
+ var s=studentById(id);if(!s)return;
+ modal("Add vocabulary term",'<div class="form-grid"><div class="field full"><label>Term</label><input id="vocTerm"></div><div class="field"><label>Type</label><select id="vocType"><option>Tier 2</option><option>Tier 3</option><option>Everyday</option></select></div><div class="field"><label>Subject</label><input id="vocSubject" value="Across curriculum"></div><div class="field"><label>Status</label><select id="vocStatus"><option>Emerging</option><option>Developing</option><option>Secure</option></select></div></div>',"Add term",function(){if(!val("vocTerm").trim())return toast("Enter a term");s.vocab=s.vocab||[];s.vocab.push({id:uid("voc"),term:val("vocTerm"),type:val("vocType"),subject:val("vocSubject"),status:val("vocStatus")});save("Added vocabulary term for "+s.name);closeModal();render()})
+}
+window.openReadingLog=function(id){
+ var s=studentById(id);if(!s)return;
+ modal("Reading log entry",'<div class="form-grid"><div class="field"><label>Date</label><input id="rlDate" type="date" value="'+today()+'"></div><div class="field"><label>Text/book/task</label><input id="rlTitle"></div><div class="field"><label>Comprehension</label><select id="rlComp"><option>Needs support</option><option selected>Developing</option><option>Mostly independent</option><option>Secure</option></select></div><div class="field"><label>Vocabulary</label><select id="rlVoc"><option>Needs support</option><option selected>Developing</option><option>Mostly independent</option><option>Secure</option></select></div><div class="field full"><label>Note</label><textarea id="rlNote"></textarea></div></div>',"Save entry",function(){s.readingLog=s.readingLog||[];s.readingLog.push({id:uid("rlog"),date:val("rlDate"),title:val("rlTitle")||"Reading task",comprehension:val("rlComp"),vocabulary:val("rlVoc"),note:val("rlNote")});save("Added reading log for "+s.name);closeModal();render()})
+}
+window.openSubjectProgress=function(id){
+ var s=studentById(id);if(!s)return;var subjects=["Science","Maths","English","Humanities","Geography","History"];
+ modal("Subject-specific language progress",'<div class="form-grid">'+subjects.map(function(k){return '<div class="field"><label>'+k+'</label><select id="sub_'+k+'">'+["Not assessed","Emerging","Developing","Secure"].map(function(v){return '<option '+((s.subjectProgress||{})[k]===v?"selected":"")+'>'+v+'</option>'}).join("")+'</select></div>'}).join("")+'</div>',"Save subject progress",function(){s.subjectProgress=s.subjectProgress||{};subjects.forEach(function(k){s.subjectProgress[k]=val("sub_"+k)});save("Updated subject progress for "+s.name);closeModal();render()})
+}
+function arrivalChecklistHtml(s){
+ var a=s.newArrival||{},items=[["languageBackground","Language background"],["previousSchooling","Previous schooling"],["baseline","Baseline EAL assessment"],["readingAge","Reading age"],["parentContact","Parent/carer contact"],["strategies","Classroom strategies shared"],["firstReview","First review scheduled"]];
+ return '<div class="card" style="margin-top:14px"><div class="section-title"><h3>New-arrival checklist</h3>'+badge(items.filter(function(x){return !!a[x[0]]}).length+"/"+items.length+" complete","brand")+'</div>'+items.map(function(x){return '<label class="priority"><input type="checkbox" '+(a[x[0]]?"checked":"")+' '+(roleCanEdit()?'onchange="toggleArrivalItem(\''+s.id+'\',\''+x[0]+'\',this.checked)"':"disabled")+'><div><b>'+esc(x[1])+'</b></div></label>'}).join("")+'</div>'
+}
+window.toggleArrivalItem=function(id,key,value){var s=studentById(id);if(!s)return;s.newArrival=s.newArrival||{};s.newArrival[key]=!!value;save("Updated onboarding checklist for "+s.name);render()}
+function studentFamily(s){
+ var logs=(s.communicationLog||[]).slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date))}),a=s.attendance||{};
+ var h='<div class="page-head"><div><h3>Family & context</h3><p>Communication, attendance context, onboarding and wider professional evidence</p></div><div class="actions">'+(roleCanEdit()?'<button class="btn" onclick="openEditStudent(\''+s.id+'\')">Edit details</button>':"")+'</div></div>';
+ h+='<div class="grid two"><div><div class="card"><div class="section-title"><h3>Parent / carer communication</h3>'+(roleCanEdit()?'<button class="btn" onclick="openCommunication(\''+s.id+'\')">+ Contact</button>':"")+'</div>';
+ if(!logs.length)h+='<div class="empty">No communication recorded.</div>';else logs.slice(0,12).forEach(function(x){h+='<div class="priority"><div><b>'+dateText(x.date)+' · '+esc(x.method)+'</b><span>'+esc(x.summary)+' · '+esc(x.action||"")+(x.interpreter?" · Interpreter/translation used":"")+'</span></div></div>'});
+ h+='</div><div class="card" style="margin-top:14px"><div class="section-title"><h3>Attendance context</h3>'+(roleCanEdit()?'<button class="btn" onclick="openAttendance(\''+s.id+'\')">Update</button>':"")+'</div><div class="score">'+esc(a.percent||"—")+(a.percent?"%":"")+'</div><p class="small muted">'+esc(a.note||"Attendance is shown as context only; no cause is inferred.")+'</p></div></div>';
+ h+='<div><div class="card"><div class="section-title"><h3>EAL / additional-needs evidence</h3>'+(roleCanEdit()?'<button class="btn" onclick="openContextEvidence(\''+s.id+'\')">+ Evidence</button>':"")+'</div><div class="notice">Record concrete observations across contexts. This supports professional review and does not diagnose or automatically classify a pupil.</div>';
+ (s.additionalNeedsEvidence||[]).slice().reverse().forEach(function(x){h+='<div class="priority"><div><b>'+dateText(x.date)+' · '+esc(x.context)+'</b><span>'+esc(x.observation)+' · '+esc(x.nextStep||"")+'</span></div></div>'});
+ h+='</div><div class="card" style="margin-top:14px"><div class="section-title"><h3>Student voice & confidence</h3>'+(roleCanEdit()?'<button class="btn" onclick="openStudentVoiceUpdate(\''+s.id+'\')">Update</button>':"")+'</div><p class="small">Speaking '+esc((s.studentVoice||{}).speaking||"—")+'/5 · Reading '+esc((s.studentVoice||{}).reading||"—")+'/5 · Writing '+esc((s.studentVoice||{}).writing||"—")+'/5</p><p class="small muted">'+esc((s.studentVoice||{}).goal||"No current student goal")+'</p></div>';
+ h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Parent report preference</h3>'+(roleCanEdit()?'<button class="btn" onclick="openParentLanguage(\''+s.id+'\')">Set language</button>':"")+'</div><b>'+esc(s.parentReportLanguage||"English")+'</b><p class="small muted">Use a school-approved translation or interpreter process for official translated reports.</p></div></div></div>';
+ h+=arrivalChecklistHtml(s);
+ h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Automatic termly summary</h3></div><p class="small">'+esc(termSummary(s))+'</p></div>';
+ return h
+}
+window.openCommunication=function(id){
+ var s=studentById(id);if(!s)return;
+ modal("Record parent / carer communication",'<div class="form-grid"><div class="field"><label>Date</label><input id="pcDate" type="date" value="'+today()+'"></div><div class="field"><label>Method</label><select id="pcMethod"><option>Meeting</option><option>Phone</option><option>Email</option><option>Message</option><option>Letter</option></select></div><div class="field full"><label>Summary</label><textarea id="pcSummary"></textarea></div><div class="field full"><label>Agreed action</label><textarea id="pcAction"></textarea></div><div class="field"><label><input type="checkbox" id="pcInterpreter"> Interpreter or translated material used</label></div></div>',"Save contact",function(){s.communicationLog=s.communicationLog||[];s.communicationLog.push({id:uid("comm"),date:val("pcDate"),method:val("pcMethod"),summary:val("pcSummary"),action:val("pcAction"),interpreter:document.getElementById("pcInterpreter").checked});s.newArrival=s.newArrival||{};s.newArrival.parentContact=true;save("Recorded parent/carer communication for "+s.name);closeModal();render()})
+}
+window.openAttendance=function(id){
+ var s=studentById(id);if(!s)return;
+ modal("Attendance context",'<div class="form-grid"><div class="field"><label>Attendance %</label><input id="attPct" type="number" min="0" max="100" step="0.1" value="'+esc((s.attendance||{}).percent||"")+'"></div><div class="field full"><label>Context note</label><textarea id="attNote">'+esc((s.attendance||{}).note||"")+'</textarea></div></div>',"Save context",function(){s.attendance={percent:val("attPct"),note:val("attNote")};save("Updated attendance context for "+s.name);closeModal();render()})
+}
+window.openContextEvidence=function(id){
+ var s=studentById(id);if(!s)return;
+ modal("Add contextual evidence",'<div class="form-grid"><div class="field"><label>Date</label><input id="ctxDate" type="date" value="'+today()+'"></div><div class="field"><label>Context</label><input id="ctxContext" placeholder="e.g. Science, home language, small group"></div><div class="field full"><label>Concrete observation</label><textarea id="ctxObs"></textarea></div><div class="field full"><label>Next professional step</label><textarea id="ctxNext"></textarea></div></div>',"Save evidence",function(){s.additionalNeedsEvidence=s.additionalNeedsEvidence||[];s.additionalNeedsEvidence.push({id:uid("ctx"),date:val("ctxDate"),context:val("ctxContext"),observation:val("ctxObs"),nextStep:val("ctxNext")});save("Added contextual evidence for "+s.name);closeModal();render()})
+}
+window.openParentLanguage=function(id){
+ var s=studentById(id);if(!s)return;
+ modal("Parent report language preference",'<div class="field"><label>Preferred language</label><input id="prLang" value="'+esc(s.parentReportLanguage||"English")+'"></div>',"Save preference",function(){s.parentReportLanguage=val("prLang")||"English";save("Updated parent report language for "+s.name);closeModal();render()})
+}
+window.openStudentVoiceUpdate=function(id){
+ var s=studentById(id);if(!s)return;
+ modal("Update student voice",'<div class="form-grid"><div class="field"><label>Speaking confidence 1-5</label><input id="svSpeaking" type="number" min="1" max="5" value="'+esc((s.studentVoice||{}).speaking||3)+'"></div><div class="field"><label>Instructions confidence 1-5</label><input id="svInstructions" type="number" min="1" max="5" value="'+esc((s.studentVoice||{}).instructions||3)+'"></div><div class="field"><label>Reading confidence 1-5</label><input id="svReading" type="number" min="1" max="5" value="'+esc((s.studentVoice||{}).reading||3)+'"></div><div class="field"><label>Writing confidence 1-5</label><input id="svWriting" type="number" min="1" max="5" value="'+esc((s.studentVoice||{}).writing||3)+'"></div><div class="field full"><label>Current goal</label><textarea id="svGoal">'+esc((s.studentVoice||{}).goal||"")+'</textarea></div></div>',"Save student voice",function(){var rec={id:uid("voice"),date:today(),speaking:Number(val("svSpeaking")),instructions:Number(val("svInstructions")),reading:Number(val("svReading")),writing:Number(val("svWriting")),goal:val("svGoal")};s.voiceHistory=s.voiceHistory||[];s.voiceHistory.push(rec);s.studentVoice=Object.assign({},s.studentVoice||{},rec);save("Updated student voice for "+s.name);closeModal();render()})
+}
+function studentEvidence(s){
+ var ev=(s.evidence||[]).slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date))});
+ var h='<div class="grid two"><div class="card"><div class="section-title"><h3>Evidence & document register</h3>'+(roleCanEdit()?'<button class="btn primary" onclick="openEvidence(\''+s.id+'\')">+ Add evidence</button>':"")+'</div><div class="notice">This browser prototype stores document references and notes, not pupil files themselves. Keep actual files in approved school storage.</div>';
+ if(!ev.length)h+='<div class="empty">No evidence items registered.</div>';else ev.forEach(function(x){h+='<div class="priority"><div><b>'+dateText(x.date)+' · '+esc(x.title)+'</b><span>'+esc(x.type)+' · '+esc(x.note||"")+(x.location?" · "+esc(x.location):"")+'</span></div></div>'});
+ h+='</div><div class="card"><div class="section-title"><h3>Change history</h3></div>';
+ var aud=(state.audit||[]).filter(function(a){return String(a.action||"").toLowerCase().indexOf(String(s.name||"").toLowerCase())>-1}).slice(0,30);if(!aud.length)h+='<div class="empty">No named changes found yet.</div>';else aud.forEach(function(a){h+='<div class="priority"><div><b>'+new Date(a.date).toLocaleString("en-GB")+'</b><span>'+esc(a.user)+" · "+esc(a.action)+'</span></div></div>'});
+ return h+'</div></div>'
+}
+window.openEvidence=function(id){
+ var s=studentById(id);if(!s)return;
+ modal("Add evidence / document reference",'<div class="form-grid"><div class="field"><label>Date</label><input id="evDate" type="date" value="'+today()+'"></div><div class="field"><label>Type</label><select id="evType"><option>Writing sample</option><option>Assessment</option><option>Reading evidence</option><option>Intervention work</option><option>Parent communication</option><option>Other</option></select></div><div class="field full"><label>Title</label><input id="evTitle"></div><div class="field full"><label>Approved storage location</label><input id="evLocation" placeholder="e.g. School Drive > EAL > 2026/27"></div><div class="field full"><label>Note</label><textarea id="evNote"></textarea></div></div>',"Register evidence",function(){if(!val("evTitle").trim())return toast("Enter a title");s.evidence=s.evidence||[];s.evidence.push({id:uid("ev"),date:val("evDate"),type:val("evType"),title:val("evTitle"),location:val("evLocation"),note:val("evNote")});save("Added evidence record for "+s.name);closeModal();render()})
+}
+
 function renderStudent(){
  var s=studentById(ui.studentId);if(!s){ui.studentId=null;ui.view="students";return renderStudents()}
  var r=readingLatest(s),g=readingGap(s,r),lvl=levelFromSkills(s.proficiency);
  var h='<div class="profile-head"><div><button class="btn" onclick="setView(\'students\')" style="margin-bottom:10px">← Students</button><h2>'+esc(s.name)+'</h2><div>'+esc(s.year+" · "+s.form)+' · '+esc(lvl)+'</div><div class="profile-meta"><span>First language: '+(ui.privacy&&ui.role==="Teacher"?"Hidden":esc(s.firstLanguage))+'</span><span>Reading age: '+(r?ageText(r.readingMonths):"Not recorded")+'</span><span>Reading gap: '+(g==null?"—":(g>0?"+":"")+g+" months")+'</span><span>Next review: '+dateText(s.nextReview)+'</span></div></div><div class="actions">'+(roleCanEdit()?'<button class="btn" onclick="openObservation(\''+s.id+'\')">+ Observation</button><button class="btn" onclick="openQuickReading(\''+s.id+'\')">+ Reading age</button>':"")+(roleCanAdmin()?'<button class="btn danger" onclick="archiveStudent(\''+s.id+'\')">Archive</button>':"")+'</div></div>';
- var tabs=[["overview","Overview"],["eal","EAL Progress"],["reading","Reading"],["targets","Targets"],["interventions","Interventions"],["observations","Observations"],["subjects","Subject Progress"],["voice","Student Voice"],["reviews","Reviews"],["passport","Passport"]];
+ var tabs=[["overview","Overview"],["eal","EAL Progress"],["reading","Reading"],["learning","Learning Tools"],["targets","Targets"],["interventions","Interventions"],["observations","Observations"],["subjects","Subject Progress"],["voice","Student Voice"],["family","Family & Context"],["evidence","Evidence"],["reviews","Reviews"],["passport","Passport"]];
  h+='<div class="tabs">'+tabs.map(function(t){return '<button class="tab '+(ui.studentTab===t[0]?"active":"")+'" onclick="ui.studentTab=\''+t[0]+'\';render()">'+t[1]+'</button>'}).join("")+'</div>';
  if(ui.studentTab==="overview")h+=studentOverview(s);
  if(ui.studentTab==="eal")h+=studentEal(s);
  if(ui.studentTab==="reading")h+=studentReading(s);
+ if(ui.studentTab==="learning")h+=studentLearning(s);
  if(ui.studentTab==="targets")h+=studentTargets(s);
  if(ui.studentTab==="interventions")h+=studentInterventions(s);
  if(ui.studentTab==="observations")h+=studentObservations(s);
  if(ui.studentTab==="subjects")h+=studentSubjects(s);
  if(ui.studentTab==="voice")h+=studentVoice(s);
+ if(ui.studentTab==="family")h+=studentFamily(s);
+ if(ui.studentTab==="evidence")h+=studentEvidence(s);
  if(ui.studentTab==="reviews")h+=studentReviews(s);
  if(ui.studentTab==="passport")h+=studentPassport(s);
  return h
