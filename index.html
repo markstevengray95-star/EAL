@@ -37,6 +37,7 @@ dialog{width:min(720px,94vw);border:0;border-radius:16px;padding:0;box-shadow:0 
 @media print{aside,.topbar,.actions,.tabs,.btn,.filters{display:none!important}.app{display:block}.content{padding:0}.card,.profile-head{box-shadow:none;break-inside:avoid}.print-only{display:block}}
 </style>
 <link rel="manifest" href="manifest.webmanifest">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div class="app">
@@ -66,6 +67,7 @@ dialog{width:min(720px,94vw);border:0;border-radius:16px;padding:0;box-shadow:0 
     <button data-view="reports">▧ Reports</button>
     <button data-view="slt">◩ SLT / Inspection</button>
     <button data-view="tools">⚒ Tools & Rollover</button>
+    <button data-view="integrations">⇄ Integration Centre</button>
     <div class="sep"></div>
     <button data-view="archive">⌁ Archive</button>
     <button data-view="settings">⚙ Settings & Privacy</button>
@@ -517,6 +519,11 @@ function ensureEnhancedData(){
  state.interventionSessions=state.interventionSessions||[];
  state.supportTimetable=state.supportTimetable||[];
  state.feedbackRequests=state.feedbackRequests||[];
+ state.integrations=state.integrations||{
+  supabase:{projectUrl:"",anonKey:"",status:"Not connected",schoolId:"",userEmail:"",lastSync:""},
+  storage:{provider:"None",driveFolderId:"",oneDrivePath:"",status:"Not connected"},
+  mis:{provider:"None",backendUrl:"",status:"Not connected",lastSync:""}
+ };
  state.staffAccounts=state.staffAccounts||[
   {id:"staff-eal",name:"EAL Coordinator",role:"EAL Coordinator",active:true},
   {id:"staff-teacher",name:"Class Teacher",role:"Teacher",active:true},
