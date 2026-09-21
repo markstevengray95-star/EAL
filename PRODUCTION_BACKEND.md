@@ -79,6 +79,7 @@ Deploy these Supabase Edge Functions after the database schema/migrations are ap
 
 ```bash
 supabase functions deploy app-sync
+supabase functions deploy staff-admin
 supabase functions deploy evidence-storage
 supabase functions deploy mis-sync
 ```
@@ -120,3 +121,18 @@ Still requires school-owned configuration:
 - Drive/OneDrive server-side credentials.
 - An approved SIMS/Arbor/Bromcom/iSAMS API or middleware connection.
 - Initial school and administrator membership setup.
+
+
+## 11. Staff access administration
+Deploy `supabase/functions/staff-admin`.
+
+After the first school administrator has been bootstrapped in `school_memberships`, that administrator can manage central access from the EAL app's Integration Centre.
+
+Supported roles:
+- Administrator
+- EAL Coordinator
+- Teacher
+- Senior Leadership
+- Read only
+
+For security, a staff member must sign in once with the configured school Google or Microsoft provider before an administrator can add their account by email. The browser never receives the service-role key.
