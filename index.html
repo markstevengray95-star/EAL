@@ -1159,6 +1159,40 @@ function providerEndpoint(name){
  var cfg=supaCfg();if(!cfg.projectUrl)return "";return cfg.projectUrl+"/functions/v1/"+name
 }
 async function callProtectedFunction(name,body){return protectedFetch(name,body)}
+window.openStaffAccess=async function(){
+ var db=(state.integrations||{}).supabase||{};
+ if(db.status!=="Connected"||!db.schoolId)return toast("Sign in to the central database first");
+ try{
+  var data=await callProtectedFunction("staff-admin",{action:"list",schoolId:db.schoolId});
+  var members=data.members||[];
+  document.getElementById("modalTitle").textContent="Central staff access";
+  document.getElementById("modalBody").innerHTML='<div class="notice" style="margin-bottom:10px">Staff must sign in once with their school Google or Microsoft account before an administrator can add them here.</div><div class="table-wrap"><table><thead><tr><th>Email</th><th>Role</th><th>Access</th></tr></thead><tbody>'+members.map(function(m){return '<tr><td>'+esc(m.email||m.userId)+(m.isCurrentUser?' '+badge("You","brand"):'')+'</td><td><select onchange="updateStaffRole(\''+m.userId+'\',this.value)" '+(m.isCurrentUser?"disabled":"")+'>'+["administrator","eal_coordinator","teacher","senior_leadership","read_only"].map(function(r){return '<option '+(m.role===r?"selected":"")+' value="'+r+'">'+r.replace(/_/g," ")+'</option>'}).join("")+'</select></td><td>'+(m.isCurrentUser?'<span class="small muted">Current account</span>':'<button class="btn danger" onclick="removeStaffAccess(\''+m.userId+'\')">Remove</button>')+'</td></tr>'}).join("")+'</tbody></table></div><div class="card" style="margin-top:12px"><h3>Add staff member</h3><div class="form-grid"><div class="field"><label>School email</label><input id="staffEmail" type="email"></div><div class="field"><label>Role</label><select id="staffRole"><option value="teacher">Teacher</option><option value="eal_coordinator">EAL Coordinator</option><option value="senior_leadership">Senior Leadership</option><option value="read_only">Read only</option><option value="administrator">Administrator</option></select></div></div><button class="btn primary" onclick="addStaffAccess()">Add staff access</button></div>';
+  document.getElementById("modalFoot").innerHTML='<button class="btn" onclick="closeModal()">Close</button>';
+  document.getElementById("modal").showModal()
+ }catch(e){toast(e&&e.message?e.message:"Could not load staff access")}
+}
+window.addStaffAccess=async function(){
+ var db=state.integrations.supabase,email=val("staffEmail").trim(),role=val("staffRole");
+ if(!email)return toast("Enter the staff email");
+ try{
+  await callProtectedFunction("staff-admin",{action:"add",schoolId:db.schoolId,email:email,role:role});
+  toast("Staff access added");await openStaffAccess()
+ }catch(e){toast(e&&e.message?e.message:"Could not add staff access")}
+}
+window.updateStaffRole=async function(userId,role){
+ try{
+  await callProtectedFunction("staff-admin",{action:"update",schoolId:state.integrations.supabase.schoolId,userId:userId,role:role});
+  toast("Staff role updated")
+ }catch(e){toast(e&&e.message?e.message:"Could not update role");await openStaffAccess()}
+}
+window.removeStaffAccess=async function(userId){
+ if(!confirm("Remove this staff member's access to the central EAL data?"))return;
+ try{
+  await callProtectedFunction("staff-admin",{action:"remove",schoolId:state.integrations.supabase.schoolId,userId:userId});
+  toast("Staff access removed");await openStaffAccess()
+ }catch(e){toast(e&&e.message?e.message:"Could not remove staff access")}
+}
+
 window.saveStorageConfig=function(){
  var s=state.integrations.storage;s.provider=val("ciStorageProvider");s.driveFolderId=val("ciDrive").trim();s.oneDrivePath=val("ciOne").trim();s.status=s.provider==="None"?"Not connected":"Configured";localStorage.setItem(STORAGE,JSON.stringify(state));render();toast("Evidence storage configuration saved")
 }
@@ -1189,7 +1223,7 @@ function renderIntegrations(){
  var h=pageHead("Integration Centre","Central database, school sign-in, evidence storage and MIS synchronisation","");
  h+='<div class="notice privacy" style="margin-bottom:14px"><b>Security:</b> only the Supabase public anon key belongs in this page. Google/Microsoft client secrets, Drive/OneDrive secrets and MIS credentials stay in Supabase/provider configuration or server-side functions.</div>';
  h+='<div class="grid two"><div class="card"><div class="section-title"><h3>Central database & staff login</h3>'+integrationBadge(db.status)+'</div><div class="form-grid"><div class="field full"><label>Supabase project URL</label><input id="ciUrl" value="'+esc(db.projectUrl||"")+'" placeholder="https://project-ref.supabase.co"></div><div class="field full"><label>Supabase public anon key</label><input id="ciKey" value="'+esc(db.anonKey||"")+'" placeholder="Public anon key only"></div></div><div class="actions"><button class="btn primary" onclick="saveCentralConfig()">Save configuration</button><button class="btn" onclick="centralSignIn(\'google\')">Sign in with Google</button><button class="btn" onclick="centralSignIn(\'azure\')">Sign in with Microsoft</button>'+(db.status==="Connected"?'<button class="btn" onclick="centralSignOut()">Sign out</button>':"")+'</div><p class="small muted">Signed in: '+esc(db.userEmail||"No staff account")+(db.schoolId?" · school "+esc(db.schoolId):"")+'</p><div class="actions"><button class="btn" onclick="centralLoad()">Load central data</button><button class="btn" onclick="centralSyncNow()">Sync now</button></div><p class="small muted">Last central sync: '+(db.lastSync?new Date(db.lastSync).toLocaleString("en-GB"):"Never")+' · revision '+esc(db.revision||0)+'</p>'+(db.syncConflict?'<div class="notice" style="margin-top:10px"><b>Sync conflict detected.</b> Another signed-in user saved a newer central revision'+(db.remoteRevision?" ("+esc(db.remoteRevision)+")":"")+'. Download a local backup if needed, then load central data before making further edits.<div class="actions" style="margin-top:8px"><button class="btn" onclick="exportBackup()">Download local backup</button><button class="btn primary" onclick="centralLoad()">Load latest central data</button></div></div>':"")+'</div>';
- h+='<div class="card"><div class="section-title"><h3>How school login works</h3></div><ol class="small"><li>Google and/or Microsoft provider is enabled in Supabase Auth.</li><li>Staff authenticate with their school account.</li><li>Row-level security checks their school membership and role.</li><li>All authorised staff in the same school share the central EAL dataset.</li></ol><div class="notice">A school administrator must add initial staff memberships in the database before they can access shared data.</div></div></div>';
+ h+='<div class="card"><div class="section-title"><h3>School staff access</h3></div><ol class="small"><li>Google and/or Microsoft provider is enabled in Supabase Auth.</li><li>Staff authenticate with their school account.</li><li>Row-level security checks their school membership and role.</li><li>All authorised staff in the same school share the central EAL dataset.</li></ol><div class="notice">The first administrator is bootstrapped once in the database. After that, staff roles can be managed here.</div><div class="actions" style="margin-top:10px"><button class="btn primary" onclick="openStaffAccess()">Manage staff roles</button></div></div></div>';
  h+='<div class="grid two" style="margin-top:14px"><div class="card"><div class="section-title"><h3>Drive / OneDrive evidence storage</h3>'+integrationBadge(st.status)+'</div><div class="form-grid"><div class="field"><label>Provider</label><select id="ciStorageProvider">'+["None","Google Drive","OneDrive"].map(function(v){return '<option '+(st.provider===v?"selected":"")+'>'+v+'</option>'}).join("")+'</select></div><div class="field"><label>Google Drive folder ID</label><input id="ciDrive" value="'+esc(st.driveFolderId||"")+'"></div><div class="field full"><label>OneDrive base folder/path</label><input id="ciOne" value="'+esc(st.oneDrivePath||"")+'"></div></div><div class="actions"><button class="btn primary" onclick="saveStorageConfig()">Save</button><button class="btn" onclick="testStorageConnection()">Test server function</button></div><p class="small muted">Actual pupil documents are uploaded by an authenticated server/Edge Function so provider secrets and refresh tokens are not exposed to the browser.</p></div>';
  h+='<div class="card"><div class="section-title"><h3>MIS sync</h3>'+integrationBadge(m.status)+'</div><div class="form-grid"><div class="field"><label>Provider</label><select id="ciMisProvider">'+["None","SIMS","Arbor","Bromcom","iSAMS"].map(function(v){return '<option '+(m.provider===v?"selected":"")+'>'+v+'</option>'}).join("")+'</select></div><div class="field full"><label>Optional provider/API base URL</label><input id="ciMisUrl" value="'+esc(m.backendUrl||"")+'"></div></div><div class="actions"><button class="btn primary" onclick="saveMisConfig()">Save</button><button class="btn" onclick="runMisSync()">Run sync</button></div><p class="small muted">Sync contract: external pupil ID, name, preferred name, DOB, year, form, admission date, first language and attendance. Provider credentials remain server-side.</p><p class="small muted">Last MIS sync: '+(m.lastSync?new Date(m.lastSync).toLocaleString("en-GB"):"Never")+'</p></div></div>';
  return h
