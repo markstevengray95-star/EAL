@@ -50,6 +50,8 @@ dialog{width:min(720px,94vw);border:0;border-radius:16px;padding:0;box-shadow:0 
     <button data-view="interventions">◇ Interventions</button>
     <button data-view="observations">◉ Observations</button>
     <button data-view="reviews">✓ Reviews</button>
+    <button data-view="reviewmeeting">☷ Review Meeting</button>
+    <button data-view="strategies">✧ Strategy Library</button>
     <button data-view="provision">▥ Provision Map</button>
     <button data-view="teacher">▣ Teacher / Class View</button>
     <button data-view="calendar">◷ Calendar & Reminders</button>
@@ -855,6 +857,64 @@ window.openMobileQuickMenu=function(){
  document.getElementById("modal").showModal()
 }
 
+
+var strategyLibrary=[
+ {stage:"New to English",category:"Access",text:"Use visuals, gestures, objects and worked examples before expecting an independent response."},
+ {stage:"New to English",category:"Language",text:"Teach a small number of essential words before the lesson and revisit them repeatedly."},
+ {stage:"New to English",category:"Participation",text:"Allow pointing, matching, drawing or short rehearsed phrases as valid early responses."},
+ {stage:"Early Acquisition",category:"Speaking",text:"Provide sentence frames and rehearse an answer with a partner before whole-class speaking."},
+ {stage:"Early Acquisition",category:"Reading",text:"Chunk texts into short sections and check meaning after each section."},
+ {stage:"Early Acquisition",category:"Writing",text:"Model one successful example, then provide a scaffold that gradually removes support."},
+ {stage:"Developing Competence",category:"Academic language",text:"Explicitly teach Tier 2 command words and Tier 3 subject vocabulary in context."},
+ {stage:"Developing Competence",category:"Writing",text:"Use paragraph frames that focus on connectives, evidence and explanation rather than copying content."},
+ {stage:"Developing Competence",category:"Questioning",text:"Give processing time, then use follow-up prompts that ask the pupil to expand or justify an answer."},
+ {stage:"Competent",category:"Academic language",text:"Focus on precision, register, complex sentence structures and subject-specific phrasing."},
+ {stage:"Competent",category:"Reading",text:"Teach how to infer meaning from context, morphology and the surrounding sentence."},
+ {stage:"Competent",category:"Assessment",text:"Check whether errors reflect subject knowledge or the language demands of the question."},
+ {stage:"Fluent",category:"Challenge",text:"Maintain age-appropriate cognitive challenge while refining nuanced academic language."},
+ {stage:"Fluent",category:"Writing",text:"Develop concision, evaluation, synthesis and subject-specific style rather than simplifying content."},
+ {stage:"All",category:"Classroom",text:"Check understanding privately rather than asking only 'Do you understand?'."},
+ {stage:"All",category:"Classroom",text:"Give key instructions both verbally and visually where practical."},
+ {stage:"All",category:"Assessment",text:"Separate language support from the knowledge or skill the task is intended to assess."},
+ {stage:"All",category:"Belonging",text:"Use the pupil's home language and prior knowledge as learning assets where appropriate."}
+];
+function renderStrategies(){
+ var stage=ui.strategyStage||"All",cat=ui.strategyCategory||"All";
+ var stages=["All"].concat(levels),cats=["All"].concat(Array.from(new Set(strategyLibrary.map(function(x){return x.category}))).sort());
+ var h=pageHead("EAL Strategy Library","Practical classroom strategies that can be assigned directly to pupil profiles","");
+ h+='<div class="filters"><select onchange="ui.strategyStage=this.value;render()">'+stages.map(function(x){return '<option '+(stage===x?"selected":"")+'>'+esc(x)+'</option>'}).join("")+'</select><select onchange="ui.strategyCategory=this.value;render()">'+cats.map(function(x){return '<option '+(cat===x?"selected":"")+'>'+esc(x)+'</option>'}).join("")+'</select></div>';
+ var list=strategyLibrary.filter(function(x){return (stage==="All"||x.stage===stage||x.stage==="All")&&(cat==="All"||x.category===cat)});
+ h+='<div class="grid three">'+list.map(function(x){return '<div class="card"><div class="section-title"><h3>'+esc(x.category)+'</h3>'+badge(x.stage==="All"?"Any stage":x.stage,"brand")+'</div><p class="small">'+esc(x.text)+'</p>'+(roleCanEdit()?'<button class="btn" onclick="openAssignStrategy(\''+encodeURIComponent(x.text)+'\')">Assign to pupil</button>':"")+'</div>'}).join("")+'</div>';
+ return h
+}
+window.openAssignStrategy=function(encoded){
+ var text=decodeURIComponent(encoded);
+ modal("Assign classroom strategy",'<div class="field"><label>Student</label><select id="asStudent">'+studentOptions()+'</select></div><div class="notice" style="margin-top:10px">'+esc(text)+'</div>',"Assign strategy",function(){var s=studentById(val("asStudent"));if(!s)return;s.strategies=s.strategies||[];if(s.strategies.indexOf(text)<0)s.strategies.push(text);save("Assigned classroom strategy to "+s.name);closeModal();render();toast("Strategy assigned")})
+}
+function reviewMeetingData(s){
+ var r=readingLatest(s),rp=readingProgress(s),latestTest=latest(s.ealTests||[]),activeTargets=(s.targets||[]).filter(function(t){return t.status!=="Completed"}),activeInts=(s.interventions||[]).filter(function(i){return i.status!=="Completed"}),obs=latest(s.observations||[]),comm=latest(s.communicationLog||[]);
+ return {r:r,rp:rp,latestTest:latestTest,targets:activeTargets,ints:activeInts,obs:obs,comm:comm}
+}
+function renderReviewMeeting(){
+ var ss=currentStudents(),id=ui.reviewMeetingStudent||((ss[0]||{}).id),s=studentById(id);
+ var h=pageHead("Review Meeting Workspace","Bring the pupil's key evidence together before a termly EAL review",roleCanEdit()?'<button class="btn primary" onclick="openReview(\''+(s?s.id:"")+'\')">Complete formal review</button>':"");
+ if(!s)return h+'<div class="empty">Add a pupil first.</div>';
+ ui.reviewMeetingStudent=s.id;
+ var d=reviewMeetingData(s),r=d.r;
+ h+='<div class="filters"><select onchange="ui.reviewMeetingStudent=this.value;render()">'+studentOptions(s.id)+'</select><button class="btn" onclick="printReviewMeeting(\''+s.id+'\')">Print meeting summary</button></div>';
+ h+='<div class="grid three"><div class="card"><h3>Current EAL profile</h3><div class="score">'+esc(levelFromSkills(s.proficiency))+'</div><p class="small muted">'+(d.latestTest?dateText(d.latestTest.date)+" · "+esc(d.latestTest.type):"No EAL test recorded")+'</p></div><div class="card"><h3>Reading</h3><div class="score">'+(r?ageText(r.readingMonths):"—")+'</div><p class="small muted">'+(d.rp?((d.rp.gain>0?"+":"")+d.rp.gain+" months over "+d.rp.elapsed+" months"):"Not enough data for a progress rate")+'</p></div><div class="card"><h3>Attendance context</h3><div class="score">'+esc((s.attendance||{}).percent||"—")+(s.attendance&&s.attendance.percent?"%":"")+'</div><p class="small muted">'+esc((s.attendance||{}).note||"No attendance context note")+'</p></div></div>';
+ h+='<div class="grid two" style="margin-top:14px"><div class="card"><div class="section-title"><h3>Current targets</h3></div>'+(d.targets.length?d.targets.map(function(t){return '<div class="priority"><div><b>'+esc(t.text)+'</b><span>'+esc(t.category)+' · review '+dateText(t.reviewDate)+'</span></div></div>'}).join(""):'<div class="empty">No active targets.</div>')+'</div><div class="card"><div class="section-title"><h3>Current interventions</h3></div>'+(d.ints.length?d.ints.map(function(i){return '<div class="priority"><div><b>'+esc(i.name)+'</b><span>'+esc(i.frequency)+' · '+esc(i.impactRating||"Not reviewed")+(i.outcome?" · "+esc(i.outcome):"")+'</span></div></div>'}).join(""):'<div class="empty">No active interventions.</div>')+'</div></div>';
+ h+='<div class="grid two" style="margin-top:14px"><div class="card"><h3>Latest classroom evidence</h3>'+(d.obs?'<p class="small"><b>'+dateText(d.obs.date)+' · '+esc(d.obs.subject)+'</b><br>'+esc(d.obs.comment||d.obs.strength||"")+'<br><b>Support:</b> '+esc(d.obs.support||"—")+'</p>':'<div class="empty">No observation recorded.</div>')+'</div><div class="card"><h3>Family communication</h3>'+(d.comm?'<p class="small"><b>'+dateText(d.comm.date)+' · '+esc(d.comm.method)+'</b><br>'+esc(d.comm.summary||"")+'<br><b>Action:</b> '+esc(d.comm.action||"—")+'</p>':'<div class="empty">No parent/carer communication recorded.</div>')+'</div></div>';
+ h+='<div class="grid two" style="margin-top:14px"><div class="card"><h3>Student voice</h3><p class="small"><b>Current goal:</b> '+esc((s.studentVoice||{}).goal||"—")+'<br>Speaking '+esc((s.studentVoice||{}).speaking||"—")+'/5 · Reading '+esc((s.studentVoice||{}).reading||"—")+'/5 · Writing '+esc((s.studentVoice||{}).writing||"—")+'/5</p></div><div class="card"><h3>Suggested agenda</h3><ol class="small"><li>Review pupil strengths and student voice.</li><li>Review EAL-domain and reading evidence.</li><li>Check classroom observations across subjects.</li><li>Review intervention impact and target evidence.</li><li>Consider attendance and family context without assuming causation.</li><li>Agree the next target, provision and review date.</li></ol></div></div>';
+ h+='<div class="card" style="margin-top:14px"><h3>Prepared summary</h3><p class="small">'+esc(termSummary(s))+'</p></div>';
+ return h
+}
+window.printReviewMeeting=function(id){
+ var s=studentById(id);if(!s)return;var d=reviewMeetingData(s),w=window.open("","_blank");if(!w)return toast("Allow pop-ups to print the meeting summary");
+ var body='<h1>'+esc(s.name)+' - EAL Review Meeting</h1><p>'+esc(s.year+" · "+s.form)+' · '+dateText(today())+'</p><h2>Current profile</h2><p>'+esc(levelFromSkills(s.proficiency))+'</p><h2>Prepared summary</h2><p>'+esc(termSummary(s))+'</p><h2>Targets</h2><ul>'+d.targets.map(function(t){return "<li>"+esc(t.text)+"</li>"}).join("")+'</ul><h2>Interventions</h2><ul>'+d.ints.map(function(i){return "<li>"+esc(i.name)+" - "+esc(i.impactRating||"Not reviewed")+"</li>"}).join("")+'</ul><h2>Student voice</h2><p>'+esc((s.studentVoice||{}).goal||"No current goal")+'</p><h2>Agreed actions / notes</h2><div style="height:160px;border:1px solid #bbb"></div>';
+ w.document.write('<html><head><title>EAL Review Meeting</title><style>body{font-family:Arial,sans-serif;margin:32px;color:#222}h1,h2{color:#275d4b}h2{font-size:17px;margin-top:22px}li,p{font-size:13px;line-height:1.5}</style></head><body>'+body+'<script>window.onload=function(){window.print()}<\/script></body></html>');w.document.close()
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
@@ -865,6 +925,8 @@ function render(){
  else if(ui.view==="interventions")html=renderInterventions();
  else if(ui.view==="observations")html=renderObservations();
  else if(ui.view==="reviews")html=renderReviews();
+ else if(ui.view==="reviewmeeting")html=renderReviewMeeting();
+ else if(ui.view==="strategies")html=renderStrategies();
  else if(ui.view==="provision")html=renderProvision();
  else if(ui.view==="teacher")html=renderTeacherView();
  else if(ui.view==="calendar")html=renderCalendar();
