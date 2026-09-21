@@ -45,3 +45,78 @@ Expected pupil fields returned to the web app:
 - Provider secrets only on server-side functions
 - Backups and retention policy agreed
 - Test with fictional records before any real pupil data
+
+
+## 7. Conflict-safe central sync
+The repository now includes `supabase/functions/app-sync` plus `supabase/migrations/003_central_sync.sql`.
+
+Apply the migration after `supabase/schema.sql`, then deploy the Edge Function:
+
+```bash
+supabase functions deploy app-sync
+```
+
+The web app saves through this function using a revision number. If another staff member saves a newer revision first, the app stops autosaving and shows a sync-conflict warning. Staff can download a local backup and load the latest central revision rather than silently overwriting another user's work.
+
+The same save also mirrors essential pupil identity fields into `students_core` so the central database has queryable student records as well as the full application snapshot.
+
+## 8. Core central tables
+The backend contains:
+
+- `schools` — school tenant record.
+- `school_memberships` — signed-in staff and roles.
+- `app_snapshots` — full school application state with revision control.
+- `students_core` — normalised core pupil identity/MIS fields.
+- `evidence_files` — Drive/OneDrive evidence metadata.
+- `integration_connections` — non-secret connection metadata.
+- `integration_sync_log` — MIS/storage sync history.
+- `central_audit_log` — central data-save audit history.
+
+Row-level security restricts reads to users who belong to the same school. Editing is further restricted by role.
+
+## 9. Deploy the server functions
+Deploy these Supabase Edge Functions after the database schema/migrations are applied:
+
+```bash
+supabase functions deploy app-sync
+supabase functions deploy evidence-storage
+supabase functions deploy mis-sync
+```
+
+Set provider credentials with Supabase secrets rather than putting them in the website.
+
+For Drive:
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_REFRESH_TOKEN`
+- optional `GOOGLE_DRIVE_FOLDER_ID`
+
+For OneDrive:
+- `MS_TENANT_ID`
+- `MS_CLIENT_ID`
+- `MS_CLIENT_SECRET`
+- `ONEDRIVE_DRIVE_ID`
+- optional `ONEDRIVE_BASE_PATH`
+
+For MIS:
+- `MIS_SYNC_URL`
+- `MIS_API_TOKEN`
+
+See `MIS_ADAPTER_CONTRACT.md` for the provider-neutral MIS payload.
+
+## 10. What is live now vs what still needs school credentials
+Already implemented in the repository:
+- Central database schema and row-level security.
+- Google/Microsoft sign-in flow through Supabase Auth.
+- Conflict-safe shared central sync.
+- Google Drive and OneDrive upload function.
+- MIS sync function and provider-neutral contract.
+- Integration Centre in the web app.
+- Local/offline cache as a resilience layer.
+
+Still requires school-owned configuration:
+- Supabase project URL and public anon key.
+- Google and/or Microsoft OAuth app configuration.
+- Drive/OneDrive server-side credentials.
+- An approved SIMS/Arbor/Bromcom/iSAMS API or middleware connection.
+- Initial school and administrator membership setup.
