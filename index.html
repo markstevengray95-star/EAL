@@ -376,11 +376,11 @@ function renderStudent(){
  if(ui.studentTab==="eal")h+=studentEalEnhanced(s);
  if(ui.studentTab==="reading")h+=studentReading(s);
  if(ui.studentTab==="learning")h+=studentLearning(s);
- if(ui.studentTab==="targets")h+=studentTargets(s);
+ if(ui.studentTab==="targets")h+=studentTargetsEnhanced(s);
  if(ui.studentTab==="interventions")h+=studentInterventionsEnhanced(s);
  if(ui.studentTab==="observations")h+=studentObservations(s);
  if(ui.studentTab==="subjects")h+=studentSubjects(s);
- if(ui.studentTab==="voice")h+=studentVoice(s);
+ if(ui.studentTab==="voice")h+=studentVoiceEnhanced(s);
  if(ui.studentTab==="family")h+=studentFamily(s);
  if(ui.studentTab==="evidence")h+=studentEvidence(s);
  if(ui.studentTab==="reviews")h+=studentReviews(s);
@@ -913,6 +913,56 @@ window.printReviewMeeting=function(id){
  var s=studentById(id);if(!s)return;var d=reviewMeetingData(s),w=window.open("","_blank");if(!w)return toast("Allow pop-ups to print the meeting summary");
  var body='<h1>'+esc(s.name)+' - EAL Review Meeting</h1><p>'+esc(s.year+" · "+s.form)+' · '+dateText(today())+'</p><h2>Current profile</h2><p>'+esc(levelFromSkills(s.proficiency))+'</p><h2>Prepared summary</h2><p>'+esc(termSummary(s))+'</p><h2>Targets</h2><ul>'+d.targets.map(function(t){return "<li>"+esc(t.text)+"</li>"}).join("")+'</ul><h2>Interventions</h2><ul>'+d.ints.map(function(i){return "<li>"+esc(i.name)+" - "+esc(i.impactRating||"Not reviewed")+"</li>"}).join("")+'</ul><h2>Student voice</h2><p>'+esc((s.studentVoice||{}).goal||"No current goal")+'</p><h2>Agreed actions / notes</h2><div style="height:160px;border:1px solid #bbb"></div>';
  w.document.write('<html><head><title>EAL Review Meeting</title><style>body{font-family:Arial,sans-serif;margin:32px;color:#222}h1,h2{color:#275d4b}h2{font-size:17px;margin-top:22px}li,p{font-size:13px;line-height:1.5}</style></head><body>'+body+'<script>window.onload=function(){window.print()}<\/script></body></html>');w.document.close()
+}
+
+
+function lowestDomain(s){
+ var arr=skills.map(function(k){return {key:k,score:Number((s.proficiency||{})[k])||1}}).sort(function(a,b){return a.score-b.score});
+ return arr[0]
+}
+function suggestedTargetText(s){
+ var d=lowestDomain(s);
+ var map={
+  listening:"Follow and explain multi-step classroom instructions with decreasing prompts.",
+  speaking:"Give a complete spoken response using relevant subject vocabulary and at least one reason or example.",
+  reading:"Identify the main idea and supporting detail in a short curriculum text with increasing independence.",
+  writing:"Write a structured paragraph using an appropriate connective and relevant academic vocabulary.",
+  vocabulary:"Use selected Tier 2 and Tier 3 vocabulary accurately in speaking or writing.",
+  grammar:"Use complete sentences with increasingly accurate tense, agreement and punctuation in curriculum work.",
+  academic:"Use common academic command words and subject-specific language accurately when explaining learning.",
+  classroom:"Participate independently in paired, group and whole-class classroom communication."
+ };
+ return {domain:d.key,label:skillLabels[d.key],text:map[d.key]}
+}
+window.openSuggestedTarget=function(id){
+ var s=studentById(id);if(!s)return;var sug=suggestedTargetText(s);
+ modal("Suggested editable EAL target",'<div class="notice">This suggestion uses only the current lowest-scoring EAL domain. Review it against classroom evidence before saving.</div><div class="form-grid"><div class="field"><label>Category</label><input id="sgCat" value="'+esc(sug.label)+'"></div><div class="field"><label>Review date</label><input id="sgReview" type="date" value="'+addMonths(today(),2)+'"></div><div class="field full"><label>Target</label><textarea id="sgText">'+esc(sug.text)+'</textarea></div><div class="field full"><label>Evidence to collect</label><textarea id="sgEvidence">Classwork, teacher observation and pupil response across relevant lessons.</textarea></div></div>',"Save target",function(){s.targets=s.targets||[];s.targets.push({id:uid("tar"),category:val("sgCat"),text:val("sgText"),dateSet:today(),reviewDate:val("sgReview"),status:"Developing",evidence:val("sgEvidence"),reviewNotes:""});save("Added suggested editable target for "+s.name);closeModal();render();toast("Target saved")})
+}
+window.openTargetReview=function(studentId,targetId){
+ var s=studentById(studentId);if(!s)return;var t=(s.targets||[]).find(function(x){return x.id===targetId});if(!t)return;
+ modal("Review EAL target",'<div class="notice">'+esc(t.text)+'</div><div class="form-grid" style="margin-top:10px"><div class="field"><label>Status</label><select id="trStatus">'+["Developing","Mostly achieved","Achieved","Completed"].map(function(x){return '<option '+((t.status||"Developing")===x?"selected":"")+'>'+x+'</option>'}).join("")+'</select></div><div class="field"><label>Next review date</label><input id="trDate" type="date" value="'+esc(t.reviewDate||"")+'"></div><div class="field full"><label>Evidence / review note</label><textarea id="trNotes">'+esc(t.reviewNotes||"")+'</textarea></div><div class="field full"><label>Next step</label><textarea id="trNext">'+esc(t.nextStep||"")+'</textarea></div></div>',"Save review",function(){t.status=val("trStatus");t.reviewDate=val("trDate");t.reviewNotes=val("trNotes");t.nextStep=val("trNext");t.lastReviewed=today();save("Reviewed EAL target for "+s.name);closeModal();render();toast("Target review saved")})
+}
+function studentTargetsEnhanced(s){
+ var h='<div class="card"><div class="section-title"><h3>Current targets</h3><div class="actions">'+(roleCanEdit()?'<button class="btn" onclick="openTarget(\''+s.id+'\')">+ Target</button><button class="btn soft" onclick="openSuggestedTarget(\''+s.id+'\')">Suggest target</button>':"")+'</div></div>';
+ if(!(s.targets||[]).length)return h+'<div class="empty">No EAL targets recorded.</div></div>';
+ (s.targets||[]).forEach(function(t){
+  var done=t.status==="Completed"||t.status==="Achieved";
+  h+='<div class="priority"><div style="flex:1"><b>'+esc(t.text)+'</b><span>'+esc(t.category)+' · Set '+dateText(t.dateSet)+' · Review '+dateText(t.reviewDate)+' · Evidence: '+esc(t.evidence||"—")+'</span>';
+  if(t.reviewNotes)h+='<div class="small" style="margin-top:5px"><b>Latest review:</b> '+esc(t.reviewNotes)+(t.nextStep?' · <b>Next:</b> '+esc(t.nextStep):"")+'</div>';
+  h+='</div><div>'+badge(t.status||"Developing",done?"ok":targetDue({targets:[t]})?"warn":"brand")+(roleCanEdit()?'<div style="margin-top:6px"><button class="btn" onclick="openTargetReview(\''+s.id+'\',\''+t.id+'\')">Review</button></div>':"")+'</div></div>'
+ });
+ return h+'</div>'
+}
+function studentVoiceEnhanced(s){
+ var h=studentVoice(s),hist=(s.voiceHistory||[]).slice().sort(function(a,b){return String(a.date).localeCompare(String(b.date))});
+ h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Confidence trend</h3>'+(roleCanEdit()?'<button class="btn" onclick="openStudentVoiceUpdate(\''+s.id+'\')">Record new check-in</button>':"")+'</div>';
+ if(!hist.length)return h+'<div class="empty">No historical student-confidence check-ins recorded yet.</div></div>';
+ h+='<div class="table-wrap"><table><thead><tr><th>Date</th><th>Speaking</th><th>Instructions</th><th>Reading</th><th>Writing</th><th>Goal</th></tr></thead><tbody>'+hist.slice().reverse().map(function(v){return '<tr><td>'+dateText(v.date)+'</td><td>'+esc(v.speaking||"—")+'/5</td><td>'+esc(v.instructions||"—")+'/5</td><td>'+esc(v.reading||"—")+'/5</td><td>'+esc(v.writing||"—")+'/5</td><td>'+esc(v.goal||"—")+'</td></tr>'}).join("")+'</tbody></table></div>';
+ if(hist.length>=2){
+  var a=hist[0],b=hist[hist.length-1],fields=["speaking","instructions","reading","writing"];
+  h+='<div class="grid four" style="margin-top:10px">'+fields.map(function(k){var d=(Number(b[k])||0)-(Number(a[k])||0);return '<div class="lang-card"><strong>'+(d>0?"+":"")+d+'</strong><span class="small muted">'+k+' confidence change</span></div>'}).join("")+'</div>'
+ }
+ return h+'</div>'
 }
 
 function render(){
