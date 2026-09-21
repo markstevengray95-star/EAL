@@ -1000,6 +1000,38 @@ window.openSupportSlot=function(){
  modal("Add weekly support slot",'<div class="form-grid"><div class="field full"><label>Student</label><select id="spStudent">'+studentOptions()+'</select></div><div class="field"><label>Day</label><select id="spDay">'+["Monday","Tuesday","Wednesday","Thursday","Friday"].map(function(x){return "<option>"+x+"</option>"}).join("")+'</select></div><div class="field"><label>Start</label><input id="spStart" type="time" value="09:00"></div><div class="field"><label>End</label><input id="spEnd" type="time" value="09:25"></div><div class="field"><label>Minutes</label><input id="spMinutes" type="number" value="25"></div><div class="field"><label>Support type</label><input id="spType" value="EAL support"></div><div class="field"><label>Staff</label><input id="spStaff" value="EAL Team"></div><div class="field"><label>Lesson missed / clash</label><input id="spMissed"></div><div class="field full"><label>Room / note</label><input id="spNote"></div></div>',"Add support slot",function(){var s=studentById(val("spStudent"));if(!s)return;state.supportTimetable.push({id:uid("slot"),studentId:s.id,day:val("spDay"),start:val("spStart"),end:val("spEnd"),minutes:Number(val("spMinutes"))||0,type:val("spType"),staff:val("spStaff"),missedLesson:val("spMissed"),note:val("spNote")});save("Added weekly support slot for "+s.name);closeModal();render();toast("Support slot added")})
 }
 
+
+function renderFeedback(){
+ var rows=(state.feedbackRequests||[]).slice().sort(function(a,b){return String(b.requestedDate).localeCompare(String(a.requestedDate))});
+ var h=pageHead("Subject Teacher Feedback","Collect structured classroom feedback before EAL reviews",roleCanEdit()?'<button class="btn primary" onclick="openFeedbackRequest()">+ Request / record feedback</button>':"");
+ h+='<div class="table-wrap"><table><thead><tr><th>Requested</th><th>Student</th><th>Subject</th><th>Teacher</th><th>Status</th><th>Strength</th><th>Language need</th><th>Useful support</th><th></th></tr></thead><tbody>'+rows.map(function(x){var s=studentById(x.studentId);return '<tr><td>'+dateText(x.requestedDate)+'</td><td>'+esc(s?s.name:"Unknown")+'</td><td>'+esc(x.subject)+'</td><td>'+esc(x.teacher||"")+'</td><td>'+badge(x.status||"Requested",x.status==="Completed"?"ok":"warn")+'</td><td>'+esc(x.strength||"—")+'</td><td>'+esc(x.need||"—")+'</td><td>'+esc(x.support||"—")+'</td><td>'+(roleCanEdit()?'<button class="btn" onclick="openFeedbackResponse(\''+x.id+'\')">Update</button>':"")+'</td></tr>'}).join("")+'</tbody></table></div>';
+ return h
+}
+window.openFeedbackRequest=function(){
+ modal("Subject teacher feedback request",'<div class="form-grid"><div class="field full"><label>Student</label><select id="fbStudent">'+studentOptions()+'</select></div><div class="field"><label>Subject</label><input id="fbSubject" value="Science"></div><div class="field"><label>Teacher</label><input id="fbTeacher"></div><div class="field"><label>Requested date</label><input id="fbDate" type="date" value="'+today()+'"></div><div class="field full"><label>Prompt / reason</label><textarea id="fbPrompt">Please comment briefly on classroom communication, reading/writing demands, strengths, language barriers and useful support.</textarea></div></div>',"Create request",function(){var s=studentById(val("fbStudent"));if(!s)return;state.feedbackRequests.push({id:uid("fb"),studentId:s.id,subject:val("fbSubject"),teacher:val("fbTeacher"),requestedDate:val("fbDate"),prompt:val("fbPrompt"),status:"Requested",strength:"",need:"",support:"",comment:""});save("Created subject teacher feedback request for "+s.name);closeModal();render();toast("Feedback request created")})
+}
+window.openFeedbackResponse=function(id){
+ var x=(state.feedbackRequests||[]).find(function(a){return a.id===id});if(!x)return;
+ modal("Update subject teacher feedback",'<div class="form-grid"><div class="field"><label>Status</label><select id="fbrStatus"><option '+(x.status==="Requested"?"selected":"")+'>Requested</option><option '+(x.status==="Completed"?"selected":"")+'>Completed</option></select></div><div class="field full"><label>Strength observed</label><textarea id="fbrStrength">'+esc(x.strength||"")+'</textarea></div><div class="field full"><label>Language barrier / need</label><textarea id="fbrNeed">'+esc(x.need||"")+'</textarea></div><div class="field full"><label>Support that helps</label><textarea id="fbrSupport">'+esc(x.support||"")+'</textarea></div><div class="field full"><label>Additional comment</label><textarea id="fbrComment">'+esc(x.comment||"")+'</textarea></div></div>',"Save feedback",function(){x.status=val("fbrStatus");x.strength=val("fbrStrength");x.need=val("fbrNeed");x.support=val("fbrSupport");x.comment=val("fbrComment");x.completedDate=x.status==="Completed"?today():"";var s=studentById(x.studentId);save("Updated subject teacher feedback for "+(s?s.name:"student"));closeModal();render();toast("Feedback updated")})
+}
+var sixWeekDefaults={
+ week1:"Confirm language background, previous schooling, immediate classroom access needs, family communication requirements and key staff.",
+ week2:"Complete or review baseline EAL profile, reading evidence and teacher observations; share classroom strategies.",
+ week4:"Collect subject-teacher feedback, review attendance/context and check whether planned support is actually being delivered.",
+ week6:"Review pupil voice, progress evidence, intervention impact and family communication; agree next target and ongoing provision."
+};
+function sixWeekPct(s){var p=s.sixWeekPathway||{},ks=["week1","week2","week4","week6"];return Math.round(ks.filter(function(k){return p[k]&&p[k].done}).length/ks.length*100)}
+function renderSixWeeks(){
+ var h=pageHead("First 6 Weeks Pathway","Structured onboarding checkpoints for new EAL arrivals","");
+ var list=currentStudents().filter(function(s){return sixWeekPct(s)<100||monthsBetween(s.admissionDate,today())<=3});
+ h+='<div class="grid three">'+list.map(function(s){var p=s.sixWeekPathway||{};return '<div class="card"><div class="section-title"><h3><span class="link" onclick="openSixWeekStudent(\''+s.id+'\')">'+esc(s.name)+'</span></h3>'+badge(sixWeekPct(s)+"%",sixWeekPct(s)===100?"ok":"warn")+'</div><p class="small muted">'+esc(s.year+" · admitted "+dateText(s.admissionDate))+'</p>'+["week1","week2","week4","week6"].map(function(k){return '<div class="priority"><div><b>'+k.replace("week","Week ")+'</b><span>'+esc(sixWeekDefaults[k])+'</span></div>'+badge(p[k]&&p[k].done?"Done":"Open",p[k]&&p[k].done?"ok":"warn")+'</div>'}).join("")+'</div>'}).join("")+'</div>';
+ return h
+}
+window.openSixWeekStudent=function(id){
+ var s=studentById(id);if(!s)return;var p=s.sixWeekPathway||{};
+ modal("First 6 Weeks - "+s.name,["week1","week2","week4","week6"].map(function(k){var x=p[k]||{};return '<div class="card" style="margin-bottom:10px"><label><input type="checkbox" id="sw_'+k+'" '+(x.done?"checked":"")+'> <b>'+k.replace("week","Week ")+'</b></label><p class="small muted">'+esc(sixWeekDefaults[k])+'</p><textarea id="swn_'+k+'" placeholder="Evidence / action note">'+esc(x.note||"")+'</textarea></div>'}).join(""),"Save pathway",function(){s.sixWeekPathway=s.sixWeekPathway||{};["week1","week2","week4","week6"].forEach(function(k){s.sixWeekPathway[k]={done:document.getElementById("sw_"+k).checked,note:val("swn_"+k),updated:today()}});save("Updated first-six-weeks pathway for "+s.name);closeModal();render();toast("Pathway updated")})
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
@@ -1019,6 +1051,8 @@ function render(){
  else if(ui.view==="impact")html=renderImpactEnhanced();
  else if(ui.view==="sessions")html=renderSessions();
  else if(ui.view==="supportplan")html=renderSupportPlan();
+ else if(ui.view==="feedback")html=renderFeedback();
+ else if(ui.view==="sixweeks")html=renderSixWeeks();
  else if(ui.view==="ealtest")html=renderEalTestPro();
  else if(ui.view==="cohorts")html=renderCohortsEnhanced();
  else if(ui.view==="reports")html=renderReportsEnhanced();
