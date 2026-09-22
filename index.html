@@ -1745,6 +1745,128 @@ if(!builtInStudentTests.some(function(t){return t.id==="school-eal-full-2"})){
  })
 }
 
+
+if(!builtInStudentTests.some(function(t){return t.id==="school-eal-full-3"})){
+ builtInStudentTests.push({
+  id:"school-eal-full-3",name:"Full EAL School Assessment — Form C",
+  description:"Third original full assessment for termly or mid-year progress testing.",timeMinutes:60,objectiveMax:40,writingMax:20,speakingMax:20,
+  sections:[
+   {id:"c_listening1",title:"Listening 1",kind:"listening",instructions:"Listen to the passage, then answer the questions. You may play it twice.",passage:"The school council has introduced a trial recycling scheme. New bins have been placed in classrooms, corridors and the dining hall. Each bin is labelled clearly so pupils know whether to add paper, plastic or general waste. During the first two weeks, eco-representatives will visit forms to explain the system. At the end of the half term, the council will compare how much waste was recycled with the amount from the previous term.",questions:[
+    {q:"What has the school council introduced?",o:["A homework club","A recycling scheme","A new timetable","A sports competition"],a:1,marks:1},
+    {q:"Where are the new bins?",o:["Only outside","Only in classrooms","In several parts of the school","Only in the dining hall"],a:2,marks:1},
+    {q:"Why are the bins labelled?",o:["To make them heavier","To show what belongs in each bin","To show who bought them","To decorate the school"],a:1,marks:1},
+    {q:"Who will explain the system?",o:["Eco-representatives","Visitors","Parents","Caretakers only"],a:0,marks:1},
+    {q:"What will be compared at half term?",o:["Pupil attendance","Recycling amounts","Lunch prices","Class sizes"],a:1,marks:1}
+   ]},
+   {id:"c_listening2",title:"Listening 2",kind:"listening",instructions:"Listen to the passage, then answer the questions. You may play it twice.",passage:"In a history lesson, pupils examined two accounts of the same event. One source was written by a person who had been present, while the other was written many years later by a historian. The teacher reminded the class that being present does not automatically make a source completely reliable. A witness may remember only part of an event or may have a strong personal viewpoint. Pupils were asked to compare the sources, identify agreements and differences, and then explain which details seemed best supported by evidence.",questions:[
+    {q:"How many accounts did pupils examine?",o:["One","Two","Three","Four"],a:1,marks:1},
+    {q:"Who wrote the later source?",o:["A witness","A historian","A scientist","A pupil"],a:1,marks:1},
+    {q:"Why might a witness still be unreliable?",o:["Witnesses never see events","They may remember only part or have a viewpoint","They write too quickly","They always agree with historians"],a:1,marks:1},
+    {q:"What were pupils asked to identify?",o:["Only dates","Agreements and differences","Spelling errors","Pictures"],a:1,marks:1},
+    {q:"What should support the strongest details?",o:["Evidence","Popularity","Guesswork","Length"],a:0,marks:1}
+   ]},
+   {id:"c_reading1",title:"Reading 1",kind:"reading",passage:"Revision is more effective when pupils actively retrieve information rather than simply rereading the same notes. Testing yourself from memory, explaining an idea aloud and answering practice questions all require the brain to reconstruct knowledge. This may feel more difficult than rereading, but difficulty is not always a sign that learning is failing. In fact, a challenging retrieval task can strengthen later recall, especially when pupils check mistakes and revisit weak areas.",questions:[
+    {q:"What is the main idea?",o:["Rereading is always best","Active retrieval can strengthen learning","Revision should feel easy","Practice questions should be avoided"],a:1,marks:1},
+    {q:"Which is an example of retrieval?",o:["Copying notes","Testing yourself from memory","Highlighting every word","Reading a title twice"],a:1,marks:1},
+    {q:"Why can retrieval feel difficult?",o:["It requires reconstructing knowledge","It uses no memory","It removes mistakes","It is always too advanced"],a:0,marks:1},
+    {q:"What should pupils do with mistakes?",o:["Ignore them","Check them and revisit weak areas","Hide them","Repeat them"],a:1,marks:1},
+    {q:"Which title fits best?",o:["Why active retrieval helps revision","How to avoid questions","The easiest possible revision","Why memory does not matter"],a:0,marks:1}
+   ]},
+   {id:"c_reading2",title:"Reading 2",kind:"reading",passage:"Urban trees provide more than decoration. Their leaves can reduce summer temperatures by creating shade and releasing water vapour. Trees may also slow rainwater before it reaches drains, which can reduce pressure on drainage systems during heavy rainfall. However, planting trees is not automatically successful. Species must be chosen carefully, roots need enough space, and young trees require maintenance if they are to survive long enough to provide these benefits.",questions:[
+    {q:"What is one benefit of urban trees?",o:["They increase summer temperatures","They provide shade","They block all rainfall","They remove drains"],a:1,marks:1},
+    {q:"How can trees affect rainwater?",o:["They can slow it before drains","They create more rain","They stop all water","They make drains smaller"],a:0,marks:1},
+    {q:"Why must species be chosen carefully?",o:["Planting is not automatically successful","All trees are identical","Only fruit trees survive","Trees need no maintenance"],a:0,marks:1},
+    {q:"What do young trees require?",o:["No attention","Maintenance","Indoor storage","Daily cutting"],a:1,marks:1},
+    {q:"What is the writer's overall message?",o:["Urban trees can help, but good planning matters","Trees have no practical value","Only large forests matter","Cities should remove trees"],a:0,marks:1}
+   ]},
+   {id:"c_language",title:"Academic language",kind:"objective",questions:[
+    {q:"Which command word asks you to give similarities and differences?",o:["Compare","Identify","State","Calculate"],a:0,marks:1},
+    {q:"Choose the best connective: 'The evidence was limited; ___, the conclusion was cautious.'",o:["therefore","unless","although","because of"],a:0,marks:1},
+    {q:"Which sentence is correct?",o:["Each result were checked.","Each result was checked.","Each results was checked.","Each result be checked."],a:1,marks:1},
+    {q:"What does 'factor' mean in an explanation?",o:["Something that influences an outcome","A title","A drawing","A final answer only"],a:0,marks:1},
+    {q:"Which phrase shows uncertainty appropriately?",o:["The evidence may suggest…","This proves everything forever.","I know for sure without evidence.","It definitely must be true."],a:0,marks:1},
+    {q:"What does 'account for' mean?",o:["Explain or cause","Count numbers only","Copy a paragraph","Remove evidence"],a:0,marks:1},
+    {q:"Choose the correct form: 'The change was ___ by temperature.'",o:["cause","caused","causing","causes"],a:1,marks:1},
+    {q:"Which command word asks for a reasoned discussion of different viewpoints?",o:["Discuss","Name","Label","State"],a:0,marks:1},
+    {q:"Which is the most precise statement?",o:["The mass fell by 4.2 g.","It got lighter.","It changed a lot.","Something happened."],a:0,marks:1},
+    {q:"What does 'valid' most nearly mean in an investigation?",o:["It measures what it is intended to measure","It is repeated many times only","It is colourful","It is fast"],a:0,marks:1},
+    {q:"Choose the best word: 'The two explanations are ___ different.'",o:["fundamental","fundamentally","foundation","fundament"],a:1,marks:1},
+    {q:"Which phrase introduces an example?",o:["For instance,","In contrast,","Nevertheless,","Consequently,"],a:0,marks:1},
+    {q:"What does 'derive' mean?",o:["Obtain or develop from a source","Delete","Repeat exactly","Disagree automatically"],a:0,marks:1},
+    {q:"Which sentence uses formal register?",o:["The findings indicate a clear relationship.","The results are super cool.","Loads of stuff happened.","It was kind of weird."],a:0,marks:1},
+    {q:"What does 'criteria' mean?",o:["Standards used to judge something","A list of names","A timetable","A measurement unit"],a:0,marks:1},
+    {q:"Choose the best contrast word: 'Group A improved. ___, Group B declined.'",o:["However","Therefore","Because","For example"],a:0,marks:1},
+    {q:"Which command word asks you to use knowledge to work out a likely result?",o:["Predict","Define","Outline","State"],a:0,marks:1},
+    {q:"What does 'consistent' mean?",o:["Showing a similar pattern or method","Random every time","Unrelated","Temporary"],a:0,marks:1},
+    {q:"Choose the correct phrase: 'The conclusion depends ___ the quality of the evidence.'",o:["on","at","to","from"],a:0,marks:1},
+    {q:"Which response best answers 'Explain why'?",o:["Because increased temperature gives particles more kinetic energy, collisions occur more often.","The temperature increased.","It is higher.","Yes."],a:0,marks:1}
+   ]},
+   {id:"c_writing",title:"Writing",kind:"writing",maxMarks:20,prompt:"Write 180–250 words explaining whether schools should spend more money on technology or on improving physical learning spaces. Give reasons, examples, consider another viewpoint and reach a justified conclusion."},
+   {id:"c_speaking",title:"Speaking",kind:"speaking",maxMarks:20,prompt:"Speak for about 2 minutes on this question: What is the best way for a school to help pupils become independent learners? Explain your ideas, compare at least two approaches and respond to one follow-up question."}
+  ]
+ })
+}
+if(!builtInStudentTests.some(function(t){return t.id==="school-eal-full-4"})){
+ builtInStudentTests.push({
+  id:"school-eal-full-4",name:"Full EAL School Assessment — Form D",
+  description:"Fourth original full assessment for later-year or end-of-cycle progress testing.",timeMinutes:60,objectiveMax:40,writingMax:20,speakingMax:20,
+  sections:[
+   {id:"d_listening1",title:"Listening 1",kind:"listening",instructions:"Listen to the passage, then answer the questions. You may play it twice.",passage:"The PE department is changing how equipment is collected before lessons. Instead of every class visiting the store room, each teacher will nominate two pupils to collect a labelled equipment bag. Bags will be prepared before the lesson and returned at the end. The department hopes this will reduce wasted time, but staff will also check whether equipment is returned accurately and whether pupils find the new system straightforward.",questions:[
+    {q:"Who will collect equipment bags?",o:["Every pupil","Two nominated pupils","Parents","Only the headteacher"],a:1,marks:1},
+    {q:"When will bags be prepared?",o:["After lessons","Before lessons","At home","Once a month"],a:1,marks:1},
+    {q:"What problem is the new system intended to reduce?",o:["Wasted time","Homework","Noise in classrooms","Lesson length"],a:0,marks:1},
+    {q:"What else will staff check?",o:["Whether pupils find it straightforward","Whether pupils like PE","Whether bags are colourful","Whether lessons are cancelled"],a:0,marks:1},
+    {q:"Where were pupils collecting equipment before?",o:["Library","Store room","Dining hall","Playground"],a:1,marks:1}
+   ]},
+   {id:"d_listening2",title:"Listening 2",kind:"listening",instructions:"Listen to the passage, then answer the questions. You may play it twice.",passage:"A mathematics teacher asked pupils to compare two methods for solving the same problem. The first method used a table, while the second used an algebraic equation. Both methods produced the correct answer. The teacher explained that a useful method is not only accurate but also efficient and easy to explain. Pupils then had to decide which method they preferred, justify their choice, and describe a situation in which the other method might still be useful.",questions:[
+    {q:"How many methods were compared?",o:["One","Two","Three","Four"],a:1,marks:1},
+    {q:"What did the first method use?",o:["A graph","A table","A calculator only","A diagram"],a:1,marks:1},
+    {q:"What did the second method use?",o:["An algebraic equation","A map","A survey","A timeline"],a:0,marks:1},
+    {q:"What makes a method useful according to the teacher?",o:["Only accuracy","Accuracy, efficiency and explainability","Length","Popularity"],a:1,marks:1},
+    {q:"What did pupils have to justify?",o:["Their preferred method","The lesson time","Their homework","The classroom"],a:0,marks:1}
+   ]},
+   {id:"d_reading1",title:"Reading 1",kind:"reading",passage:"Feedback is most useful when it helps a learner decide what to do next. A comment such as 'improve this' gives little guidance because it does not identify the problem or suggest a strategy. More effective feedback might identify one strength, one specific area to improve and an action the learner can attempt. The learner also needs time to use the feedback. Without that opportunity, even detailed comments may have little effect on future work.",questions:[
+    {q:"What is the main idea?",o:["Feedback should help learners decide next steps","All feedback should be long","Pupils should ignore comments","Only grades matter"],a:0,marks:1},
+    {q:"Why is 'improve this' weak feedback?",o:["It is too polite","It does not identify the problem or strategy","It is too long","It contains a grade"],a:1,marks:1},
+    {q:"What might effective feedback include?",o:["One strength and a specific improvement action","Only a mark","A new homework title","No explanation"],a:0,marks:1},
+    {q:"What else do learners need?",o:["Time to use the feedback","More colours","A different classroom","Less information"],a:0,marks:1},
+    {q:"What can happen to detailed comments if pupils cannot act on them?",o:["They may have little effect","They always improve work","They become grades","They replace teaching"],a:0,marks:1}
+   ]},
+   {id:"d_reading2",title:"Reading 2",kind:"reading",passage:"Biodiversity describes the variety of living organisms in an area. A habitat with many different species may be more resilient to change because different organisms respond in different ways to disease, weather or competition. However, simply counting species does not provide a complete picture. Scientists may also consider how common each species is, how populations change over time and how organisms depend on one another.",questions:[
+    {q:"What does biodiversity describe?",o:["The variety of living organisms","Only the number of trees","Weather patterns","Soil colour"],a:0,marks:1},
+    {q:"Why might a diverse habitat be more resilient?",o:["Different organisms respond differently to change","All species are identical","It never experiences disease","Competition disappears"],a:0,marks:1},
+    {q:"Why is counting species alone incomplete?",o:["Scientists also need information about abundance and change","Species cannot be counted","Numbers are never useful","Only plants matter"],a:0,marks:1},
+    {q:"What else might scientists consider?",o:["How populations change over time","School timetables","Road signs","Classroom size"],a:0,marks:1},
+    {q:"What does 'depend on one another' suggest?",o:["Organisms can be connected","Species never interact","Every organism lives alone","Only predators matter"],a:0,marks:1}
+   ]},
+   {id:"d_language",title:"Academic language",kind:"objective",questions:[
+    {q:"Which command word asks you to give the main features without extensive detail?",o:["Outline","Evaluate","Calculate","Justify"],a:0,marks:1},
+    {q:"Choose the best connective: 'The sample was small; ___, the findings may not represent the whole population.'",o:["therefore","because","unless","meanwhile"],a:0,marks:1},
+    {q:"Which sentence is correct?",o:["Neither method are perfect.","Neither method is perfect.","Neither methods is perfect.","Neither method be perfect."],a:1,marks:1},
+    {q:"What does 'implication' mean?",o:["A possible consequence or meaning","A spelling rule","A measurement","A title"],a:0,marks:1},
+    {q:"Which phrase shows a balanced judgement?",o:["Overall, the evidence supports the idea, although there are limitations.","This is definitely perfect.","I just like this answer.","There is no need for evidence."],a:0,marks:1},
+    {q:"What does 'correlation' mean?",o:["A relationship between variables","Proof of cause","A writing style","A diagram label"],a:0,marks:1},
+    {q:"Choose the correct word: 'The pattern is ___ visible in the second graph.'",o:["clear","clearly","clarity","clearing"],a:1,marks:1},
+    {q:"Which command word asks for reasons supporting a choice?",o:["Justify","State","Name","Label"],a:0,marks:1},
+    {q:"Which sentence is most objective?",o:["The results increased from 12 to 19.","The results were awesome.","I liked the increase.","It felt much bigger."],a:0,marks:1},
+    {q:"What does 'bias' mean?",o:["A systematic influence that can make evidence unfair or unbalanced","A perfect measurement","A random title","A conclusion"],a:0,marks:1},
+    {q:"Choose the best phrase: 'This explanation is more convincing ___ it accounts for both results.'",o:["because","although","however","therefore"],a:0,marks:1},
+    {q:"Which word signals addition?",o:["Furthermore","However","Although","Despite"],a:0,marks:1},
+    {q:"What does 'synthesise' mean?",o:["Combine ideas from different sources into a new whole","Copy one source","Remove evidence","List titles"],a:0,marks:1},
+    {q:"Which is formal academic language?",o:["A possible explanation is…","I kinda think…","Loads happened…","It was really cool…"],a:0,marks:1},
+    {q:"What does 'representative' mean in a sample?",o:["Similar enough to the wider group to reflect it","The largest possible","Chosen randomly without purpose","Always perfect"],a:0,marks:1},
+    {q:"Choose the best phrase for a cause-and-effect link.",o:["As a result,","In contrast,","For example,","Similarly,"],a:0,marks:1},
+    {q:"Which command word asks you to separate something into parts and examine relationships?",o:["Analyse","State","Define","Label"],a:0,marks:1},
+    {q:"What does 'reliable' mean in repeated measurement?",o:["Results are consistent when repeated appropriately","The result is always correct","The method is fast","The equipment is new"],a:0,marks:1},
+    {q:"Choose the correct phrase: 'The argument is based ___ three pieces of evidence.'",o:["on","at","from","by"],a:0,marks:1},
+    {q:"Which response best evaluates a method?",o:["It produced consistent results, but the small sample limits confidence in the conclusion.","It worked.","The answer is 5.","It was interesting."],a:0,marks:1}
+   ]},
+   {id:"d_writing",title:"Writing",kind:"writing",maxMarks:20,prompt:"Write 180–250 words explaining whether regular homework is the best way to improve learning. Include reasons and examples, consider a different viewpoint and reach a justified conclusion."},
+   {id:"d_speaking",title:"Speaking",kind:"speaking",maxMarks:20,prompt:"Speak for about 2 minutes on this question: What should schools do to help pupils manage stress during busy assessment periods? Explain your view, compare approaches and respond to one follow-up question."}
+  ]
+ })
+}
+
 function allStudentTests(){return builtInStudentTests.concat(state.licensedTests||[])}
 function testById(id){return allStudentTests().find(function(t){return t.id===id})}
 function makeTestCode(){var n=Math.floor(100000+Math.random()*900000);while((state.testSessions||[]).some(function(s){return s.code===String(n)&&s.status!=="Completed"}))n=Math.floor(100000+Math.random()*900000);return String(n)}
