@@ -1460,7 +1460,7 @@ function renderAssessmentHub(){
  all.sort(function(a,b){return String(b.t.date).localeCompare(String(a.t.date))});
  var h=pageHead("Assessment Centre","Bell-aligned EAL profiling, student testing, reading assessment and progress evidence",roleCanEdit()?'<button class="btn primary" onclick="openDetailedEalAssessment()">+ New EAL assessment</button><button class="btn" onclick="openCreateStudentTest()">Create student test</button><button class="btn" onclick="openLicensedTestImport()">Import licensed test</button><button class="btn" onclick="openLicensedTestLibrary()">Licensed library</button>':"");
  h+='<div class="notice privacy" style="margin-bottom:14px"><b>Assessment basis:</b> the main profile uses the five-band UK EAL model: A New to English, B Early Acquisition, C Developing Competence, D Competent and E Fluent. The tasks in this app are original school assessment materials aligned to that framework; they are not copied test items.</div>';
- h+='<div class="grid three"><div class="card"><h3>Student Test Mode</h3><p class="small muted">Give a pupil a six-digit code. Listening, reading and academic-language items are auto-marked; speaking and writing are teacher-marked for a final total.</p><div class="actions"><button class="btn primary" onclick="openCreateStudentTest()">Create code</button><button class="btn" onclick="setView(\'studenttest\')">Student entry</button><button class="btn" onclick="setView(\'testsessions\')">Test sessions</button></div></div><div class="card"><h3>Full EAL proficiency assessment</h3><p class="small muted">Assess Listening, Speaking, Reading and Writing separately, record evidence and confirm an A–E best-fit band.</p><button class="btn primary" onclick="openDetailedEalAssessment()">Start assessment</button></div>'+hubCard("Reading ages","Record standardised reading-test results and track reading-age change over time.","reading")+hubCard("Assessment history","Review saved EAL profiles, strand results and evidence over time.","ealtest")+'</div>';
+ h+='<div class="grid three"><div class="card"><h3>Student Test Mode</h3><p class="small muted">Give a pupil a six-digit code. Listening, reading and academic-language items are auto-marked; speaking and writing are teacher-marked for a final total.</p><div class="actions"><button class="btn primary" onclick="openCreateStudentTest()">Create code</button><button class="btn" onclick="setView(\'studenttest\')">Student entry</button><button class="btn" onclick="setView(\'testsessions\')">Test sessions</button></div></div><div class="card"><h3>Full EAL proficiency assessment</h3><p class="small muted">Assess Listening, Speaking, Reading and Writing separately, record evidence and confirm an A–E best-fit band.</p><button class="btn primary" onclick="openDetailedEalAssessment()">Start assessment</button></div>'+hubCard("Reading ages","Record standardised reading-test results and track reading-age change over time.","reading")+hubCard("Assessment history","Review saved EAL profiles, strand results and evidence over time.","ealtest")+hubCard("Student self-assessment","Pupil confidence and goal-setting check-ins.","studentselfmanager")+'</div>';
  h+='<div class="grid two" style="margin-top:14px"><div class="card"><div class="section-title"><h3>Five proficiency bands</h3><a class="small link" href="https://www.bell-foundation.org.uk/resources/eal-assessment-framework/" target="_blank" rel="noopener">Framework reference ↗</a></div>'+Object.keys(ealBandLabels).map(function(k){return '<div class="framework-band"><strong>'+k+'</strong><b>'+esc(ealBandLabels[k])+'</b><span class="small muted">'+esc(ealBandGuidance[k])+'</span></div>'}).join("")+'</div><div class="card"><div class="section-title"><h3>Recent framework assessments</h3><span class="small muted">'+all.length+' saved</span></div>';
  if(!all.length)h+='<div class="empty">No detailed EAL assessments saved yet.</div>';else all.slice(0,8).forEach(function(x){h+='<div class="priority"><div><b>'+dateText(x.t.date)+' · '+esc(x.s.name)+'</b><span>'+esc(x.t.type)+' · '+esc(ealBandText(x.t.confirmedBand||x.t.suggestedBand))+' · '+esc(x.t.confidence||"")+'</span></div></div>'});
  h+='</div></div>';
@@ -2561,12 +2561,62 @@ window.printParentInformationPack=function(id){
  w.document.write('<html><head><title>Parent EAL Information Pack</title><style>body{font-family:Arial;margin:32px;line-height:1.55;max-width:800px}h1,h2{color:#275d4b}.box{border:1px solid #ddd;padding:12px;margin:12px 0}</style></head><body><h1>EAL Progress & Support Information</h1><h2>'+esc(s.name)+'</h2><div class="box"><b>What is going well</b><p>'+esc(s.strengths||"Strengths will be updated as evidence is collected.")+'</p></div><div class="box"><b>Current English-learning focus</b><p>'+esc(target?target.text:s.development||"Ongoing development of classroom and academic English.")+'</p></div><div class="box"><b>School support</b><p>'+esc(inter?inter.name+" — "+inter.focus:"Classroom strategies, monitoring and review.")+'</p></div><div class="box"><b>How families can help</b><p>Continue reading, discussion and learning in the home language as well as English. Talk about school topics, encourage questions, and share any information about previous schooling or language use that may help teachers understand learning strengths.</p></div><p><b>Preferred communication language:</b> '+esc(s.parentReportLanguage||"English")+'</p><script>window.onload=function(){window.print()}<\/script></body></html>');w.document.close()
 }
 
+
+function makePortalCode(){
+ var n=String(Math.floor(100000+Math.random()*900000));
+ while((state.studentPortalCodes||[]).some(function(x){return x.code===n&&x.active}))n=String(Math.floor(100000+Math.random()*900000));
+ return n
+}
+window.openSelfCodeFromInput=function(){
+ var el=document.getElementById("selfCodeInput");ui.selfCode=el?String(el.value||"").trim():"";render()
+}
+window.createStudentSelfAssessmentCode=function(id){
+ var s=studentById(id);if(!s)return;
+ var code={id:uid("portal"),studentId:s.id,code:makePortalCode(),createdAt:new Date().toISOString(),active:true};
+ state.studentPortalCodes=state.studentPortalCodes||[];state.studentPortalCodes.unshift(code);save("Created student self-assessment code for "+s.name);
+ var link=location.origin+location.pathname+"?view=studentself&code="+encodeURIComponent(code.code);
+ modal("Student self-assessment code",'<div class="score" style="text-align:center">'+code.code+'</div><p class="small">Give this code to '+esc(s.preferredName||s.name)+'.</p><div class="field"><label>Direct link</label><input value="'+esc(link)+'" readonly></div><div class="notice" style="margin-top:10px">Across different devices, responses require shared central data. In local/Drive-only mode, use the same browser/device.</div>',"Close",function(){closeModal()})
+}
+function renderStudentSelfAssessment(){
+ var q=new URLSearchParams(location.search),code=q.get("code")||ui.selfCode||"";
+ var entry=(state.studentPortalCodes||[]).find(function(x){return x.code===code&&x.active}),s=entry&&studentById(entry.studentId);
+ if(!s){
+  return pageHead("Student self-assessment","Enter the six-digit code given by your teacher","")+
+  '<div class="card" style="max-width:520px;margin:30px auto"><div class="field"><label>Code</label><input id="selfCodeInput" maxlength="6" style="font-size:26px;text-align:center"></div><button class="btn primary" style="width:100%" onclick="openSelfCodeFromInput()">Open check-in</button></div>'
+ }
+ var h=pageHead("My English learning check-in",s.preferredName||s.name,"");
+ h+='<div class="card" style="max-width:760px;margin:auto"><p>Rate how confident you feel today. There are no right or wrong answers.</p><div class="form-grid">';
+ ["Speaking in lessons","Understanding instructions","Reading school texts","Writing school answers"].forEach(function(x,i){h+='<div class="field"><label>'+x+' 1–5</label><input id="self'+i+'" type="range" min="1" max="5" value="3"><div class="small muted">1 = need lots of help · 5 = confident independently</div></div>'});
+ h+='<div class="field full"><label>One thing that is getting easier</label><textarea id="selfEasy"></textarea></div><div class="field full"><label>My next English-learning goal</label><textarea id="selfGoal"></textarea></div></div><button class="btn primary" onclick="submitStudentSelfAssessment(\''+entry.id+'\')">Save my check-in</button></div>';
+ return h
+}
+window.submitStudentSelfAssessment=function(entryId){
+ var e=(state.studentPortalCodes||[]).find(function(x){return x.id===entryId}),s=e&&studentById(e.studentId);if(!s)return;
+ var v={date:today(),speaking:Number(val("self0")),instructions:Number(val("self1")),reading:Number(val("self2")),writing:Number(val("self3")),easiest:val("selfEasy"),goal:val("selfGoal")};
+ s.studentVoice=Object.assign({},s.studentVoice||{},v);s.voiceHistory=s.voiceHistory||[];s.voiceHistory.push(v);e.active=false;save("Student self-assessment completed for "+s.name);
+ document.getElementById("content").innerHTML='<div class="card" style="max-width:560px;margin:60px auto;text-align:center"><h2>Thank you</h2><p>Your check-in has been saved.</p></div>'
+}
+function renderStudentSelfManager(){
+ var rows=(state.studentPortalCodes||[]).slice().sort(function(a,b){return String(b.createdAt).localeCompare(String(a.createdAt))});
+ var h=pageHead("Student Self-Assessment","Create pupil confidence and goal-setting check-ins",roleCanEdit()?'<button class="btn primary" onclick="openSelfCodePicker()">+ Create pupil code</button>':"");
+ h+='<div class="notice privacy" style="margin-bottom:12px">Pupil responses feed into Student Voice and confidence trends. They do not alter EAL proficiency automatically.</div>';
+ if(!rows.length)return h+'<div class="empty">No self-assessment codes created yet.</div>';
+ h+='<div class="table-wrap"><table><thead><tr><th>Pupil</th><th>Code</th><th>Created</th><th>Status</th></tr></thead><tbody>';
+ rows.forEach(function(x){var s=studentById(x.studentId);h+='<tr><td>'+esc(s?s.name:"Unknown")+'</td><td><b>'+esc(x.code)+'</b></td><td>'+new Date(x.createdAt).toLocaleString("en-GB")+'</td><td>'+badge(x.active?"Open":"Completed",x.active?"warn":"ok")+'</td></tr>'});
+ return h+'</tbody></table></div>'
+}
+window.openSelfCodePicker=function(){
+ modal("Create pupil self-assessment",'<div class="field"><label>Student</label><select id="selfPick">'+studentOptions()+'</select></div>',"Create code",function(){var id=val("selfPick");closeModal();createStudentSelfAssessmentCode(id)})
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
  else if(ui.view==="dashboard")html=renderDashboardEnhanced();
  else if(ui.view==="students")html=renderStudentsEnhanced();
  else if(ui.view==="assessmenthub")html=renderAssessmentHub();
+ else if(ui.view==="studentselfmanager")html=renderStudentSelfManager();
+ else if(ui.view==="studentself")html=renderStudentSelfAssessment();
  else if(ui.view==="studenttests")html=renderStudentTestsHome();
  else if(ui.view==="studenttest")html=renderStudentTestPortalPro();
  else if(ui.view==="testsessions")html=renderTestSessionsPro();
