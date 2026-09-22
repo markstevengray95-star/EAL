@@ -521,6 +521,8 @@ function ensureEnhancedData(){
  state.interventionSessions=state.interventionSessions||[];
  state.supportTimetable=state.supportTimetable||[];
  state.feedbackRequests=state.feedbackRequests||[];
+ state.testSessions=state.testSessions||[];
+ state.licensedTests=state.licensedTests||[];
  state.directDrive=state.directDrive||{clientId:"",status:"Not connected",folderId:"",folderName:"EAL Progress Hub",backupFileId:"",lastSync:"",autoSync:true};
  if(state.directDrive.autoSync===undefined)state.directDrive.autoSync=true;
  state.integrations=state.integrations||{
@@ -1400,9 +1402,9 @@ function hubCard(title,body,target,label){
 function renderAssessmentHub(){
  var all=[];currentStudents().forEach(function(s){(s.ealTests||[]).filter(function(t){return t.frameworkAssessment}).forEach(function(t){all.push({s:s,t:t})})});
  all.sort(function(a,b){return String(b.t.date).localeCompare(String(a.t.date))});
- var h=pageHead("Assessment Centre","Bell-aligned EAL profiling, reading assessment and progress evidence",roleCanEdit()?'<button class="btn primary" onclick="openDetailedEalAssessment()">+ New EAL assessment</button>':"");
+ var h=pageHead("Assessment Centre","Bell-aligned EAL profiling, student testing, reading assessment and progress evidence",roleCanEdit()?'<button class="btn primary" onclick="openDetailedEalAssessment()">+ New EAL assessment</button><button class="btn" onclick="openCreateStudentTest()">Create student test</button><button class="btn" onclick="openLicensedTestImport()">Import licensed test</button>':"");
  h+='<div class="notice privacy" style="margin-bottom:14px"><b>Assessment basis:</b> the main profile uses the five-band UK EAL model: A New to English, B Early Acquisition, C Developing Competence, D Competent and E Fluent. The tasks in this app are original school assessment materials aligned to that framework; they are not copied test items.</div>';
- h+='<div class="grid three"><div class="card"><h3>Full EAL proficiency assessment</h3><p class="small muted">Assess Listening, Speaking, Reading and Writing separately, record evidence and confirm an A–E best-fit band.</p><button class="btn primary" onclick="openDetailedEalAssessment()">Start assessment</button></div>'+hubCard("Reading ages","Record standardised reading-test results and track reading-age change over time.","reading")+hubCard("Assessment history","Review saved EAL profiles, strand results and evidence over time.","ealtest")+'</div>';
+ h+='<div class="grid three"><div class="card"><h3>Student Test Mode</h3><p class="small muted">Give a pupil a six-digit code. Listening, reading and academic-language items are auto-marked; speaking and writing are teacher-marked for a final total.</p><div class="actions"><button class="btn primary" onclick="openCreateStudentTest()">Create code</button><button class="btn" onclick="setView(\'studenttest\')">Student entry</button><button class="btn" onclick="setView(\'testsessions\')">Test sessions</button></div></div><div class="card"><h3>Full EAL proficiency assessment</h3><p class="small muted">Assess Listening, Speaking, Reading and Writing separately, record evidence and confirm an A–E best-fit band.</p><button class="btn primary" onclick="openDetailedEalAssessment()">Start assessment</button></div>'+hubCard("Reading ages","Record standardised reading-test results and track reading-age change over time.","reading")+hubCard("Assessment history","Review saved EAL profiles, strand results and evidence over time.","ealtest")+'</div>';
  h+='<div class="grid two" style="margin-top:14px"><div class="card"><div class="section-title"><h3>Five proficiency bands</h3><a class="small link" href="https://www.bell-foundation.org.uk/resources/eal-assessment-framework/" target="_blank" rel="noopener">Framework reference ↗</a></div>'+Object.keys(ealBandLabels).map(function(k){return '<div class="framework-band"><strong>'+k+'</strong><b>'+esc(ealBandLabels[k])+'</b><span class="small muted">'+esc(ealBandGuidance[k])+'</span></div>'}).join("")+'</div><div class="card"><div class="section-title"><h3>Recent framework assessments</h3><span class="small muted">'+all.length+' saved</span></div>';
  if(!all.length)h+='<div class="empty">No detailed EAL assessments saved yet.</div>';else all.slice(0,8).forEach(function(x){h+='<div class="priority"><div><b>'+dateText(x.t.date)+' · '+esc(x.s.name)+'</b><span>'+esc(x.t.type)+' · '+esc(ealBandText(x.t.confirmedBand||x.t.suggestedBand))+' · '+esc(x.t.confidence||"")+'</span></div></div>'});
  h+='</div></div>';
@@ -1549,12 +1551,202 @@ function scheduleDirectDriveSync(){
  clearTimeout(directDriveTimer);directDriveTimer=setTimeout(function(){directDriveBackup(true)},2500)
 }
 
+
+var builtInStudentTests=[
+ {
+  id:"school-eal-full-1",
+  name:"Full EAL School Assessment — Form A",
+  description:"Original school assessment covering listening, reading, academic language, writing and speaking.",
+  timeMinutes:60,
+  objectiveMax:40,
+  writingMax:20,
+  speakingMax:20,
+  sections:[
+   {
+    id:"listening1",title:"Listening 1",kind:"listening",instructions:"Listen to the passage, then answer the questions. You may play it twice.",
+    passage:"The science department is changing how pupils borrow equipment for independent projects. From next Monday, students must reserve equipment online before collecting it from the prep room. Items can be borrowed for up to three school days. Fragile equipment must stay on site, but sensors and data loggers may be taken home with written permission. Staff will review the system after six weeks because they want to know whether it reduces lost equipment and waiting time.",
+    questions:[
+     {q:"What must students do before collecting equipment?",o:["Ask another pupil","Reserve it online","Pay a deposit","Email the headteacher"],a:1,marks:1},
+     {q:"How long can most equipment be borrowed?",o:["One day","Two days","Three school days","One week"],a:2,marks:1},
+     {q:"Which items must stay at school?",o:["Sensors","Data loggers","Fragile equipment","All equipment"],a:2,marks:1},
+     {q:"Why will staff review the system?",o:["To change the science curriculum","To see whether it reduces problems","To buy new equipment","To shorten lessons"],a:1,marks:1},
+     {q:"Which statement is true?",o:["Nothing may be taken home","Some items need written permission to go home","Students can borrow items for a month","The system starts in six weeks"],a:1,marks:1}
+    ]
+   },
+   {
+    id:"listening2",title:"Listening 2",kind:"listening",instructions:"Listen to the passage, then answer the questions. You may play it twice.",
+    passage:"A group of Year Nine pupils investigated noise around the school. They measured sound levels at five locations during morning break and lunchtime. The dining hall was loudest at lunchtime, but the corridor outside the music rooms had the highest morning reading. The pupils suggested adding soft wall panels in the dining hall and changing where queues form. They also said the measurements should be repeated on several days because one day might not represent normal conditions.",
+    questions:[
+     {q:"How many locations were measured?",o:["Three","Four","Five","Six"],a:2,marks:1},
+     {q:"When was the dining hall loudest?",o:["Before school","Morning break","Lunchtime","After school"],a:2,marks:1},
+     {q:"Where was the highest morning reading?",o:["Dining hall","Library","Outside the music rooms","Playground"],a:2,marks:1},
+     {q:"What change was suggested for the dining hall?",o:["Remove tables","Add soft wall panels","Close it at break","Move the music rooms"],a:1,marks:1},
+     {q:"Why repeat the measurements?",o:["To make the school day longer","Because one day may not be typical","Because the equipment was broken","To avoid writing a report"],a:1,marks:1}
+    ]
+   },
+   {
+    id:"reading1",title:"Reading 1",kind:"reading",
+    passage:"Many schools now use digital homework platforms. These systems can make instructions easier to find and allow teachers to attach examples, videos or feedback. However, a digital platform does not automatically make homework more accessible. Some pupils share devices, have unreliable internet access or find long online instructions difficult to follow. A useful system therefore needs clear task design as well as reliable technology. Schools should also check whether pupils can complete tasks independently, rather than assuming that successful login means successful learning.",
+    questions:[
+     {q:"What is the main idea of the passage?",o:["Digital homework is always better","Technology helps, but task design and access still matter","Schools should stop giving homework","Videos are the best form of feedback"],a:1,marks:1},
+     {q:"Which difficulty is mentioned?",o:["Pupils cannot read books","Some pupils share devices","Teachers refuse to give feedback","Schools have no computers"],a:1,marks:1},
+     {q:"What does 'accessible' most nearly mean here?",o:["Easy to reach and use","Expensive","Hidden","Optional"],a:0,marks:1},
+     {q:"Why should schools check independent completion?",o:["A login does not prove learning happened","Pupils should work faster","Homework should be shorter","Teachers need fewer lessons"],a:0,marks:1},
+     {q:"Which statement best reflects the writer's view?",o:["Technology alone solves the problem","Only internet speed matters","Good technology and clear task design both matter","Online homework should be banned"],a:2,marks:1}
+    ]
+   },
+   {
+    id:"reading2",title:"Reading 2",kind:"reading",
+    passage:"When people learn a new subject, unfamiliar vocabulary can make an easy idea appear difficult. This is especially true when one everyday word has a more precise meaning in a school subject. For example, 'cell' may describe a small room in ordinary conversation, but in biology it refers to the basic structural unit of living organisms. Effective teaching does not simply replace difficult words with easier ones. Instead, it introduces the precise term, explains it clearly, shows it in context and gives learners repeated opportunities to use it.",
+    questions:[
+     {q:"Why can an easy idea seem difficult?",o:["The classroom is noisy","Unfamiliar vocabulary can hide the meaning","The subject is always advanced","Pupils forget their timetable"],a:1,marks:1},
+     {q:"Why is 'cell' used as an example?",o:["It has different meanings in different contexts","It is a very long word","It is only used in biology","It is impossible to explain"],a:0,marks:1},
+     {q:"According to the text, effective teaching should:",o:["Avoid precise vocabulary","Use only everyday language","Teach precise terms clearly and repeatedly","Ask pupils to memorise definitions once"],a:2,marks:1},
+     {q:"What does 'structural unit' suggest about a cell?",o:["It is part of how an organism is built","It is a type of classroom","It is a measuring device","It is a spoken instruction"],a:0,marks:1},
+     {q:"Which title best fits the passage?",o:["Why schools need more rooms","Teaching subject vocabulary effectively","How to avoid biology","The history of dictionaries"],a:1,marks:1}
+    ]
+   },
+   {
+    id:"language",title:"Academic language",kind:"objective",
+    questions:[
+     {q:"Which instruction asks you to give reasons?",o:["State","Explain","Label","Name"],a:1,marks:1},
+     {q:"Which instruction asks you to consider strengths and limitations before reaching a judgement?",o:["Evaluate","List","Identify","Copy"],a:0,marks:1},
+     {q:"Choose the best connective: 'The sample was small; ___, the conclusion should be treated cautiously.'",o:["therefore","because","unless","meanwhile"],a:0,marks:1},
+     {q:"Choose the correct sentence.",o:["The results shows a clear pattern.","The results show a clear pattern.","The results showing a clear pattern.","The result show clear pattern."],a:1,marks:1},
+     {q:"What does 'contrast' mean?",o:["Show similarities only","Show differences","Give a definition","Copy evidence"],a:1,marks:1},
+     {q:"Which phrase is most suitable in an academic conclusion?",o:["I reckon this is right","The evidence suggests that","It is obviously amazing","Whatever happens"],a:1,marks:1},
+     {q:"Choose the best word: 'The two groups were treated ___ so the comparison was fair.'",o:["similar","similarly","similarity","more similar"],a:1,marks:1},
+     {q:"What does 'infer' mean?",o:["Copy an exact sentence","Work out meaning from clues","List facts alphabetically","Measure a distance"],a:1,marks:1},
+     {q:"Choose the best word: 'The temperature increased, ___ the reaction rate also increased.'",o:["and","although","unless","despite"],a:0,marks:1},
+     {q:"Which sentence is most precise?",o:["Lots of stuff changed.","The mass decreased by 12 grams.","Things got smaller.","It was kind of different."],a:1,marks:1},
+     {q:"What does 'significant' most nearly mean in academic writing?",o:["Meaningful or important in context","Always correct","Very colourful","Unrelated"],a:0,marks:1},
+     {q:"Which command word asks for similarities and differences?",o:["Compare","State","Calculate","Define"],a:0,marks:1},
+     {q:"Choose the correct form: 'There ___ several possible explanations.'",o:["is","are","be","was being"],a:1,marks:1},
+     {q:"Which phrase best introduces evidence?",o:["For example, the data show…","I just think…","Maybe whatever…","It is nice that…"],a:0,marks:1},
+     {q:"What does 'justify' mean?",o:["Give a reasoned explanation for a choice","Draw a diagram only","Repeat the question","Use fewer words"],a:0,marks:1},
+     {q:"Choose the best sentence opener for a comparison.",o:["In contrast,","Yesterday,","Suddenly,","Luckily,"],a:0,marks:1},
+     {q:"Which is the most formal alternative to 'a lot of'?",o:["numerous","loads of","tons of","big bunch"],a:0,marks:1},
+     {q:"What does 'evidence' mean in school work?",o:["Information used to support a claim","A guess with no support","A heading","A timetable"],a:0,marks:1},
+     {q:"Choose the correct phrase: 'This may have occurred ___ the equipment was not calibrated.'",o:["because","however","therefore","although"],a:0,marks:1},
+     {q:"Which response best answers 'Describe the trend'?",o:["It is good.","The value increases steadily from 2 to 8.","I agree with the graph.","The experiment was interesting."],a:1,marks:1}
+    ]
+   },
+   {
+    id:"writing",title:"Writing",kind:"writing",maxMarks:20,
+    prompt:"Write 180–250 words for a teacher explaining one change that could improve learning in school. Describe the issue, explain your proposal, consider one possible difficulty and give a justified conclusion."
+   },
+   {
+    id:"speaking",title:"Speaking",kind:"speaking",maxMarks:20,
+    prompt:"Speak for about 2 minutes on this question: What makes a lesson effective for different learners? Give examples, compare at least two approaches, respond to one follow-up question and justify your view."
+   }
+  ]
+ }
+];
+function allStudentTests(){return builtInStudentTests.concat(state.licensedTests||[])}
+function testById(id){return allStudentTests().find(function(t){return t.id===id})}
+function makeTestCode(){var n=Math.floor(100000+Math.random()*900000);while((state.testSessions||[]).some(function(s){return s.code===String(n)&&s.status!=="Completed"}))n=Math.floor(100000+Math.random()*900000);return String(n)}
+function objectiveQuestions(test){
+ var out=[];(test.sections||[]).forEach(function(sec){if(["listening","reading","objective"].indexOf(sec.kind)>-1)(sec.questions||[]).forEach(function(q,idx){out.push({section:sec,index:idx,q:q})})});return out
+}
+function objectiveMax(test){return objectiveQuestions(test).reduce(function(n,x){return n+Number(x.q.marks||1)},0)}
+function renderTestQuestion(session,sec,q,idx){
+ var key=sec.id+"_"+idx,selected=(session.answers||{})[key];
+ return '<div class="card" style="margin-bottom:10px"><b>'+esc(q.q)+'</b><div style="margin-top:8px">'+(q.o||[]).map(function(o,j){return '<label style="display:block;padding:6px 0"><input type="radio" name="test_'+key+'" value="'+j+'" '+(String(selected)===String(j)?"checked":"")+' onchange="saveStudentTestAnswer(\''+session.id+'\',\''+key+'\',this.value)"> '+esc(o)+'</label>'}).join("")+'</div></div>'
+}
+function renderStudentTestPortal(){
+ var session=ui.activeTestSession? (state.testSessions||[]).find(function(x){return x.id===ui.activeTestSession}) : null;
+ if(!session){
+  return pageHead("Student Test Mode","Enter the six-digit code given by your teacher","")+
+   '<div class="card" style="max-width:520px;margin:40px auto"><h3>Enter test code</h3><div class="field"><label>Test code</label><input id="studentTestCode" inputmode="numeric" maxlength="6" style="font-size:28px;letter-spacing:8px;text-align:center"></div><button class="btn primary" style="width:100%;margin-top:12px" onclick="enterStudentTest()">Open test</button><p class="small muted" style="margin-top:12px">Only the pupil linked to this code is shown. The code expires when the assessment is completed or cancelled.</p></div>'
+ }
+ var test=testById(session.testId),student=studentById(session.studentId);if(!test||!student)return '<div class="empty">This test session is no longer available.</div>';
+ if(session.status==="Submitted"||session.status==="Completed"){
+  var obj=Number(session.objectiveScore||0),max=Number(session.objectiveMax||objectiveMax(test)),final=session.finalScore;
+  var h=pageHead("Test submitted",student.preferredName||student.name,"");
+  h+='<div class="card" style="max-width:720px;margin:auto;text-align:center"><div class="score">'+obj+'/'+max+'</div><p>Automatically marked score</p>';
+  if(final!==undefined&&final!==null)h+='<div class="score" style="margin-top:18px">'+final+'/'+Number(session.finalMax||80)+'</div><p>Final score after speaking and writing</p>';
+  else h+='<div class="notice" style="margin-top:16px">Your objective sections are marked. Your final score will appear after a teacher marks the speaking and writing sections.</div>';
+  return h+'<button class="btn" style="margin-top:16px" onclick="leaveStudentTest()">Exit test</button></div>'
+ }
+ if(!session.startedAt){session.startedAt=new Date().toISOString();session.status="In progress";save("Student test started for "+student.name)}
+ var h=pageHead(test.name,student.preferredName||student.name,"<span class='badge brand'>"+esc(test.timeMinutes||60)+" min guidance</span>");
+ h+='<div class="notice privacy" style="margin-bottom:14px">Complete each section independently. Your answers save automatically on this device.</div>';
+ (test.sections||[]).forEach(function(sec){
+  h+='<div class="assessment-pack"><div class="section-title"><h3>'+esc(sec.title)+'</h3><span>'+esc(sec.kind)+'</span></div>';
+  if(sec.instructions)h+='<p class="small muted">'+esc(sec.instructions)+'</p>';
+  if(sec.kind==="listening")h+='<button class="btn" onclick="playListeningPassage(\''+session.id+'\',\''+sec.id+'\')">▶ Play listening passage</button>';
+  if(sec.kind==="reading"&&sec.passage)h+='<div class="card" style="margin:10px 0;line-height:1.6">'+esc(sec.passage)+'</div>';
+  if(["listening","reading","objective"].indexOf(sec.kind)>-1)h+=(sec.questions||[]).map(function(q,i){return renderTestQuestion(session,sec,q,i)}).join("");
+  if(sec.kind==="writing")h+='<div class="notice">'+esc(sec.prompt)+'</div><div class="field" style="margin-top:10px"><label>Your response</label><textarea id="studentWriting" style="min-height:260px" oninput="saveStudentWriting(\''+session.id+'\',this.value)">'+esc(session.writingResponse||"")+'</textarea></div>';
+  if(sec.kind==="speaking")h+='<div class="notice">'+esc(sec.prompt)+'</div><p class="small muted">Your teacher will listen to this section and mark it using the speaking rubric.</p>';
+  h+='</div>'
+ });
+ h+='<div class="card"><div class="notice"><b>Before submitting:</b> check your answers. Once submitted, the objective sections are marked automatically and cannot be changed.</div><button class="btn primary" style="margin-top:12px" onclick="submitStudentTest(\''+session.id+'\')">Submit test</button></div>';
+ return h
+}
+window.enterStudentTest=function(){
+ var code=(document.getElementById("studentTestCode")?document.getElementById("studentTestCode").value:"").trim(),session=(state.testSessions||[]).find(function(s){return s.code===code&&s.status!=="Cancelled"});
+ if(!session)return toast("Test code not found");
+ ui.activeTestSession=session.id;ui.view="studenttest";render()
+}
+window.leaveStudentTest=function(){ui.activeTestSession=null;setView("assessmenthub")}
+window.saveStudentTestAnswer=function(sessionId,key,value){var s=(state.testSessions||[]).find(function(x){return x.id===sessionId});if(!s)return;s.answers=s.answers||{};s.answers[key]=Number(value);localStorage.setItem(STORAGE,JSON.stringify(state))}
+window.saveStudentWriting=function(sessionId,value){var s=(state.testSessions||[]).find(function(x){return x.id===sessionId});if(!s)return;s.writingResponse=value;localStorage.setItem(STORAGE,JSON.stringify(state))}
+window.playListeningPassage=function(sessionId,sectionId){
+ var session=(state.testSessions||[]).find(function(x){return x.id===sessionId}),test=session&&testById(session.testId),sec=test&&(test.sections||[]).find(function(x){return x.id===sectionId});if(!sec||!sec.passage)return;
+ session.listeningPlays=session.listeningPlays||{};session.listeningPlays[sectionId]=Number(session.listeningPlays[sectionId]||0)+1;localStorage.setItem(STORAGE,JSON.stringify(state));
+ if("speechSynthesis" in window){window.speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(sec.passage);u.rate=.92;u.lang="en-GB";window.speechSynthesis.speak(u)}else toast("Audio reading is not supported by this browser")
+}
+function markObjectiveSession(session,test){
+ var score=0,max=0;(test.sections||[]).forEach(function(sec){if(["listening","reading","objective"].indexOf(sec.kind)<0)return;(sec.questions||[]).forEach(function(q,i){var marks=Number(q.marks||1);max+=marks;if(Number((session.answers||{})[sec.id+"_"+i])===Number(q.a))score+=marks})});return {score:score,max:max}
+}
+window.submitStudentTest=function(sessionId){
+ var session=(state.testSessions||[]).find(function(x){return x.id===sessionId}),test=session&&testById(session.testId),student=session&&studentById(session.studentId);if(!session||!test||!student)return;
+ var r=markObjectiveSession(session,test);session.objectiveScore=r.score;session.objectiveMax=r.max;session.status="Submitted";session.submittedAt=new Date().toISOString();save("Student submitted EAL test for "+student.name);render()
+}
+window.openCreateStudentTest=function(){
+ modal("Create student test session",'<div class="form-grid"><div class="field"><label>Student</label><select id="newTestStudent">'+studentOptions()+'</select></div><div class="field"><label>Test</label><select id="newTestId">'+allStudentTests().map(function(t){return '<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>'}).join("")+'</select></div></div><div class="notice" style="margin-top:10px">The app generates a six-digit code. Give only that code to the pupil taking the test.</div>',"Create session",function(){var st=studentById(val("newTestStudent")),test=testById(val("newTestId"));if(!st||!test)return;var session={id:uid("ts"),code:makeTestCode(),studentId:st.id,testId:test.id,status:"Ready",createdAt:new Date().toISOString(),answers:{},writingResponse:"",objectiveScore:null,writingScore:null,speakingScore:null};state.testSessions.push(session);save("Created student test session for "+st.name);closeModal();ui.lastCreatedTestSession=session.id;setView("testsessions")})
+}
+function renderTestSessions(){
+ var sessions=(state.testSessions||[]).slice().sort(function(a,b){return String(b.createdAt).localeCompare(String(a.createdAt))});
+ var h=pageHead("Student Test Sessions","Create codes, monitor submissions and complete final marking",roleCanEdit()?'<button class="btn primary" onclick="openCreateStudentTest()">+ New test session</button>':"");
+ h+='<div class="notice privacy" style="margin-bottom:12px">Built-in tests are original school materials. Use Licensed Test Import only for assessments your school has permission to reproduce and administer online.</div>';
+ if(!sessions.length)return h+'<div class="empty">No student test sessions yet.</div>';
+ h+='<div class="table-wrap"><table><thead><tr><th>Code</th><th>Student</th><th>Test</th><th>Status</th><th>Auto score</th><th>Final score</th><th></th></tr></thead><tbody>'+sessions.map(function(s){var st=studentById(s.studentId),test=testById(s.testId);return '<tr><td><b style="font-size:18px;letter-spacing:2px">'+esc(s.code)+'</b></td><td>'+esc(st?st.name:"Unknown")+'</td><td>'+esc(test?test.name:"Removed test")+'</td><td>'+badge(s.status,s.status==="Completed"?"ok":s.status==="Submitted"?"warn":"brand")+'</td><td>'+(s.objectiveScore==null?"—":s.objectiveScore+"/"+s.objectiveMax)+'</td><td>'+(s.finalScore==null?"—":s.finalScore+"/"+s.finalMax)+'</td><td>'+(s.status==="Submitted"||s.status==="Completed"?'<button class="btn" onclick="openMarkStudentTest(\''+s.id+'\')">Mark / review</button>':'<button class="btn danger" onclick="cancelTestSession(\''+s.id+'\')">Cancel</button>')+'</td></tr>'}).join("")+'</tbody></table></div>';
+ return h
+}
+window.cancelTestSession=function(id){var s=(state.testSessions||[]).find(function(x){return x.id===id});if(!s)return;s.status="Cancelled";save("Cancelled student test session");render()}
+function rubricSelect(id,current){
+ return '<select id="'+id+'">'+[0,1,2,3,4,5].map(function(n){return '<option value="'+n+'" '+(Number(current||0)===n?"selected":"")+'>'+n+'/5</option>'}).join("")+'</select>'
+}
+window.openMarkStudentTest=function(id){
+ var session=(state.testSessions||[]).find(function(x){return x.id===id}),test=session&&testById(session.testId),student=session&&studentById(session.studentId);if(!session||!test||!student)return;
+ var w=session.writingMarks||{},sp=session.speakingMarks||{};
+ var html='<div class="notice"><b>Objective score:</b> '+session.objectiveScore+'/'+session.objectiveMax+'</div><div class="card" style="margin-top:10px"><h3>Writing response</h3><div class="notice">'+esc(session.writingResponse||"No writing response submitted")+'</div><div class="form-grid" style="margin-top:10px"><div class="field"><label>Task & content</label>'+rubricSelect("wm_content",w.content)+'</div><div class="field"><label>Organisation & cohesion</label>'+rubricSelect("wm_org",w.organisation)+'</div><div class="field"><label>Vocabulary & register</label>'+rubricSelect("wm_vocab",w.vocabulary)+'</div><div class="field"><label>Grammar & accuracy</label>'+rubricSelect("wm_grammar",w.grammar)+'</div></div></div>';
+ html+='<div class="card" style="margin-top:10px"><h3>Speaking rubric</h3><p class="small muted">'+esc(((test.sections||[]).find(function(x){return x.kind==="speaking"})||{}).prompt||"")+'</p><div class="form-grid"><div class="field"><label>Interaction & response</label>'+rubricSelect("sm_interaction",sp.interaction)+'</div><div class="field"><label>Fluency & organisation</label>'+rubricSelect("sm_fluency",sp.fluency)+'</div><div class="field"><label>Vocabulary & range</label>'+rubricSelect("sm_vocab",sp.vocabulary)+'</div><div class="field"><label>Grammar & intelligibility</label>'+rubricSelect("sm_accuracy",sp.accuracy)+'</div></div></div>';
+ modal("Mark test — "+student.name,html,"Save final score",function(){
+  session.writingMarks={content:Number(val("wm_content")),organisation:Number(val("wm_org")),vocabulary:Number(val("wm_vocab")),grammar:Number(val("wm_grammar"))};
+  session.speakingMarks={interaction:Number(val("sm_interaction")),fluency:Number(val("sm_fluency")),vocabulary:Number(val("sm_vocab")),accuracy:Number(val("sm_accuracy"))};
+  session.writingScore=Object.keys(session.writingMarks).reduce(function(n,k){return n+session.writingMarks[k]},0);
+  session.speakingScore=Object.keys(session.speakingMarks).reduce(function(n,k){return n+session.speakingMarks[k]},0);
+  session.finalScore=Number(session.objectiveScore||0)+session.writingScore+session.speakingScore;session.finalMax=Number(session.objectiveMax||0)+40;session.finalPercent=Math.round(session.finalScore/session.finalMax*100);session.status="Completed";session.markedAt=new Date().toISOString();
+  student.ealTests=student.ealTests||[];var existing=student.ealTests.find(function(t){return t.studentTestSessionId===session.id});if(!existing)student.ealTests.push({id:uid("test"),studentTest:true,studentTestSessionId:session.id,date:today(),type:test.name,assessor:ui.role,autoScore:session.objectiveScore,productiveScore:session.writingScore+session.speakingScore,maxScore:session.finalMax,finalScore:session.finalScore,finalPercent:session.finalPercent,notes:"Student-facing full test. Objective "+session.objectiveScore+"/"+session.objectiveMax+", writing "+session.writingScore+"/20, speaking "+session.speakingScore+"/20."});
+  save("Finalised student EAL test for "+student.name);closeModal();render();toast("Final score "+session.finalScore+"/"+session.finalMax+" ("+session.finalPercent+"%)")
+ })
+}
+window.openLicensedTestImport=function(){
+ var template='{"name":"Licensed Test Name","timeMinutes":45,"sections":[{"id":"section1","title":"Section 1","kind":"objective","questions":[{"q":"Question text","o":["A","B","C","D"],"a":0,"marks":1}]},{"id":"writing","title":"Writing","kind":"writing","maxMarks":20,"prompt":"Writing prompt"},{"id":"speaking","title":"Speaking","kind":"speaking","maxMarks":20,"prompt":"Speaking prompt"}]}';
+ modal("Import licensed test",'<div class="notice privacy">Only import assessment content your school is licensed or otherwise permitted to reproduce and administer online. The app does not supply copyrighted commercial test papers.</div><div class="field" style="margin-top:10px"><label>Test JSON</label><textarea id="licensedTestJson" style="min-height:260px">'+esc(template)+'</textarea></div>',"Import test",function(){try{var t=JSON.parse(val("licensedTestJson"));if(!t.name||!Array.isArray(t.sections))throw Error("Test needs a name and sections");t.id=t.id||uid("licensed");t.licensedImport=true;t.importedAt=new Date().toISOString();state.licensedTests.push(t);save("Imported licensed test "+t.name);closeModal();render();toast("Licensed test imported")}catch(e){toast("Invalid test JSON: "+e.message)}})
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
  else if(ui.view==="dashboard")html=renderDashboardEnhanced();
  else if(ui.view==="students")html=renderStudentsEnhanced();
  else if(ui.view==="assessmenthub")html=renderAssessmentHub();
+ else if(ui.view==="studenttest")html=renderStudentTestPortal();
+ else if(ui.view==="testsessions")html=renderTestSessions();
  else if(ui.view==="supporthub")html=renderSupportHub();
  else if(ui.view==="reviewhub")html=renderReviewHub();
  else if(ui.view==="adminhub")html=renderAdminHub();
