@@ -1494,6 +1494,7 @@ function renderReviewHub(){
  hubCard("Cohorts & heatmap","Whole-school EAL analysis without ranking pupils.","cohorts")+
  hubCard("Cohort progress & context","Progress over time, time in English and attendance context.","cohorttrends")+
  hubCard("Reports","Generate pupil, parent and termly reports.","reports")+
+ hubCard("Report cycles","Batch-print reports and create transfer summaries.","reportcycles")+
  hubCard("Printable support packs","Class sheets, new-arrival packs and parent information.","supportpacks")+
  hubCard("SLT / inspection","Anonymised provision and evidence overview.","slt")+
  hubCard("Calendar & reminders","See reassessments, reviews and actions due.","calendar")+
@@ -2739,6 +2740,55 @@ function renderReminderCentre(){
  return h+'</div>'
 }
 
+
+function reportPageHtml(s,type){
+ var r=readingLatest(s),target=(s.targets||[]).find(function(t){return t.status!=="Completed"}),inter=activeIntervention(s);
+ if(type==="passport"){
+  return '<h2>'+esc(s.name)+'</h2><p>'+esc(s.year+" · "+s.form)+' · '+esc(levelFromSkills(s.proficiency))+'</p><h3>Strengths</h3><p>'+esc(s.strengths||"—")+'</p><h3>Current target</h3><p>'+esc(target?target.text:"—")+'</p><h3>Classroom strategies</h3><ul>'+((s.strategies||[]).slice(0,6).map(function(x){return "<li>"+esc(x)+"</li>"}).join(""))+'</ul>'
+ }
+ if(type==="parent"){
+  return '<h2>'+esc(s.name)+'</h2><h3>What is going well</h3><p>'+esc(s.strengths||"—")+'</p><h3>Current focus</h3><p>'+esc(target?target.text:s.development||"—")+'</p><h3>School support</h3><p>'+esc(inter?inter.name+" — "+inter.focus:"Classroom support and monitoring")+'</p>'
+ }
+ return '<h2>'+esc(s.name)+'</h2><p>'+esc(s.year+" · "+s.form)+' · '+esc(levelFromSkills(s.proficiency))+'</p><h3>Reading</h3><p>'+(r?ageText(r.readingMonths)+" ("+dateText(r.date)+")":"No reading assessment")+'</p><h3>Target</h3><p>'+esc(target?target.text:"—")+'</p><h3>Intervention</h3><p>'+esc(inter?inter.name+" — "+inter.focus:"No active intervention")+'</p><h3>Next review</h3><p>'+dateText(s.nextReview)+'</p>'
+}
+window.printBatchReports=function(ss,type){
+ var w=window.open("","_blank");if(!w)return toast("Allow pop-ups to create batch reports");
+ var title=type==="parent"?"EAL Parent/Carer Report":type==="passport"?"EAL Student Passport":"EAL Progress Report";
+ var pages=ss.map(function(s){return '<section class="page"><h1>'+esc(title)+'</h1>'+reportPageHtml(s,type)+'</section>'}).join("");
+ w.document.write('<html><head><title>EAL Batch Reports</title><style>body{font-family:Arial;margin:30px;color:#222}h1,h2,h3{color:#275d4b}.page{page-break-after:always;max-width:800px;margin:auto;min-height:95vh}li,p{line-height:1.5}</style></head><body>'+pages+'<script>window.onload=function(){window.print()}<\/script></body></html>');w.document.close()
+}
+window.openBatchReports=function(){
+ var years=["All"].concat(Array.from(new Set(currentStudents().map(function(s){return s.year}).filter(Boolean))).sort());
+ var forms=["All"].concat(Array.from(new Set(currentStudents().map(function(s){return s.form}).filter(Boolean))).sort());
+ var html='<div class="form-grid"><div class="field"><label>Year</label><select id="batchYear">'+years.map(function(x){return "<option>"+esc(x)+"</option>"}).join("")+'</select></div><div class="field"><label>Form</label><select id="batchForm">'+forms.map(function(x){return "<option>"+esc(x)+"</option>"}).join("")+'</select></div><div class="field"><label>Report type</label><select id="batchType"><option value="full">Progress report</option><option value="parent">Parent-friendly report</option><option value="passport">Student passport</option></select></div><div class="field"><label>Cycle label</label><input id="batchLabel" value="Termly EAL report cycle"></div></div>';
+ modal("Batch report cycle",html,"Create batch",function(){
+  var y=val("batchYear"),fm=val("batchForm"),type=val("batchType");
+  var ss=currentStudents().filter(function(s){return (y==="All"||s.year===y)&&(fm==="All"||s.form===fm)});
+  if(!ss.length)return toast("No pupils in that cohort");
+  state.termReportCycles=state.termReportCycles||[];
+  state.termReportCycles.unshift({id:uid("cycle"),date:new Date().toISOString(),label:val("batchLabel"),year:y,form:fm,type:type,count:ss.length});
+  save("Created batch report cycle for "+ss.length+" pupils");closeModal();printBatchReports(ss,type)
+ })
+}
+window.printTransferSummary=function(id){
+ var s=studentById(id);if(!s)return;
+ var w=window.open("","_blank");if(!w)return;
+ var r=readingLatest(s),t=(s.targets||[]).find(function(x){return x.status!=="Completed"}),i=activeIntervention(s),rev=latest(s.reviews||[]);
+ var body='<h1>EAL Transfer / Handover Summary</h1><h2>'+esc(s.name)+'</h2><div class="box"><b>Year/Form:</b> '+esc(s.year+" / "+s.form)+'<br><b>First language:</b> '+esc(s.firstLanguage||"—")+'<br><b>Current EAL stage:</b> '+esc(levelFromSkills(s.proficiency))+'<br><b>Home-language literacy:</b> reading '+esc((s.homeLanguageLiteracy||{}).reading||"—")+', writing '+esc((s.homeLanguageLiteracy||{}).writing||"—")+'</div><h2>Previous schooling/context</h2><p>'+esc((s.previousSchoolingDetails||{}).curriculum||s.previousSchooling||"—")+'</p><h2>Reading evidence</h2><p>'+(r?ageText(r.readingMonths)+" · "+dateText(r.date):"No reading assessment recorded")+'</p><h2>Current target</h2><p>'+esc(t?t.text:"—")+'</p><h2>Current provision</h2><p>'+esc(i?i.name+" — "+i.focus:"No active intervention")+'</p><h2>Useful strategies</h2><ul>'+((s.strategies||[]).slice(0,8).map(function(x){return "<li>"+esc(x)+"</li>"}).join(""))+'</ul><h2>Latest review</h2><p>'+esc(rev?rev.summary:"No formal review recorded")+'</p>';
+ w.document.write('<html><head><title>EAL Transfer Summary</title><style>body{font-family:Arial;margin:32px;line-height:1.55;max-width:820px}h1,h2{color:#275d4b}.box{border:1px solid #ddd;padding:12px;margin:12px 0}</style></head><body>'+body+'<script>window.onload=function(){window.print()}<\/script></body></html>');w.document.close()
+}
+window.openTransferSummary=function(){
+ modal("Transfer / leaver summary",'<div class="field"><label>Student</label><select id="transferStudent">'+studentOptions()+'</select></div>',"Create summary",function(){var s=studentById(val("transferStudent"));if(!s)return;closeModal();printTransferSummary(s.id)})
+}
+function renderReportCycles(){
+ var cycles=state.termReportCycles||[];
+ var h=pageHead("Report Cycles","Create batch reports and transfer summaries",roleCanEdit()?'<button class="btn primary" onclick="openBatchReports()">+ New report cycle</button><button class="btn" onclick="openTransferSummary()">Transfer summary</button>':"");
+ if(!cycles.length)return h+'<div class="empty">No batch report cycles recorded yet.</div>';
+ h+='<div class="table-wrap"><table><thead><tr><th>Date</th><th>Label</th><th>Cohort</th><th>Type</th><th>Pupils</th></tr></thead><tbody>';
+ cycles.forEach(function(x){h+='<tr><td>'+new Date(x.date).toLocaleString("en-GB")+'</td><td>'+esc(x.label)+'</td><td>'+esc(x.year+" · "+x.form)+'</td><td>'+esc(x.type)+'</td><td>'+x.count+'</td></tr>'});
+ return h+'</tbody></table></div>'
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
@@ -2781,6 +2831,7 @@ function render(){
  else if(ui.view==="cohorts")html=renderCohortsEnhanced();
  else if(ui.view==="cohorttrends")html=renderCohortTrends();
  else if(ui.view==="reports")html=renderReportsEnhanced();
+ else if(ui.view==="reportcycles")html=renderReportCycles();
  else if(ui.view==="supportpacks")html=renderPackLauncher();
  else if(ui.view==="slt")html=renderSlt();
  else if(ui.view==="tools")html=renderToolsEnhanced();
