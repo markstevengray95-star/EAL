@@ -43,6 +43,7 @@ dialog{width:min(980px,96vw);border:0;border-radius:16px;padding:0;box-shadow:0 
 <link rel="manifest" href="manifest.webmanifest">
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 <div class="auth-gate" id="authGate" hidden>
@@ -94,7 +95,7 @@ var coreSkills=["listening","speaking","reading","writing"];
 var skillLabels={listening:"Listening",speaking:"Speaking",reading:"Reading",writing:"Writing",vocabulary:"Vocabulary",grammar:"Grammar",academic:"Academic language",classroom:"Classroom communication"};
 var levels=["New to English","Early Acquisition","Developing Competence","Competent","Fluent"];
 var state;
-var centralClient=null,centralSyncTimer=null;
+var centralClient=null,centralSyncTimer=null,directDriveToken="",directDriveTimer=null,directDriveTokenClient=null;
 var runtimeConfig=window.EAL_CONFIG||{};
 var ui={view:"dashboard",studentId:null,studentTab:"overview",studentFilter:"",yearFilter:"All",levelFilter:"All",privacy:false,role:"Administrator"};
 
@@ -110,7 +111,7 @@ function dateText(v){if(!v)return"—";return new Date(v+"T12:00:00").toLocaleDa
 function roleCanEdit(){return ui.role==="Administrator"||ui.role==="EAL Coordinator"||ui.role==="Teacher"}
 function roleCanAdmin(){return ui.role==="Administrator"||ui.role==="EAL Coordinator"}
 function toast(msg){var t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");setTimeout(function(){t.classList.remove("show")},2200)}
-function save(action){localStorage.setItem(STORAGE,JSON.stringify(state));if(action){state.audit.unshift({id:uid("audit"),date:new Date().toISOString(),user:ui.role,action:action});state.audit=state.audit.slice(0,200);localStorage.setItem(STORAGE,JSON.stringify(state))}scheduleCentralSync()}
+function save(action){localStorage.setItem(STORAGE,JSON.stringify(state));if(action){state.audit.unshift({id:uid("audit"),date:new Date().toISOString(),user:ui.role,action:action});state.audit=state.audit.slice(0,200);localStorage.setItem(STORAGE,JSON.stringify(state))}scheduleCentralSync();scheduleDirectDriveSync()}
 function studentById(id){return state.students.find(function(s){return s.id===id})}
 function latest(arr){return (arr||[]).slice().sort(function(a,b){return String(b.date||b.reviewDate||"").localeCompare(String(a.date||a.reviewDate||""))})[0]}
 function levelFromSkills(obj){var keys=coreSkills.filter(function(k){return obj&&obj[k]!=null});if(!keys.length)keys=skills;var sum=keys.reduce(function(a,k){return a+(Number(obj&&obj[k])||1)},0);var avg=sum/keys.length;return levels[Math.max(0,Math.min(4,Math.round(avg)-1))]}
@@ -528,6 +529,8 @@ function ensureEnhancedData(){
  state.interventionSessions=state.interventionSessions||[];
  state.supportTimetable=state.supportTimetable||[];
  state.feedbackRequests=state.feedbackRequests||[];
+ state.directDrive=state.directDrive||{clientId:"",status:"Not connected",folderId:"",folderName:"EAL Progress Hub",backupFileId:"",lastSync:"",autoSync:true};
+ if(state.directDrive.autoSync===undefined)state.directDrive.autoSync=true;
  state.integrations=state.integrations||{
   supabase:{projectUrl:"",anonKey:"",status:"Not connected",schoolId:"",userEmail:"",lastSync:""},
   storage:{provider:"Google Drive",status:"Not connected",destinationName:"",destinationUrl:""},
@@ -1450,6 +1453,110 @@ function renderAdminHub(){
  '</div>';return h
 }
 
+
+function driveCfg(){
+ state.directDrive=state.directDrive||{clientId:"",status:"Not connected",folderId:"",folderName:"EAL Progress Hub",backupFileId:"",lastSync:"",autoSync:true};
+ return state.directDrive
+}
+function directDriveCleanState(){
+ var copy=JSON.parse(JSON.stringify(state));
+ if(copy.integrations&&copy.integrations.supabase){copy.integrations.supabase.anonKey="";copy.integrations.supabase.userEmail=""}
+ if(copy.directDrive)copy.directDrive.status="Not connected";
+ return copy
+}
+function renderDrive(){
+ var d=driveCfg(),connected=!!directDriveToken&&d.status==="Connected";
+ var h=pageHead("Google Drive","Simple backup and restore without iSAMS or a central database","");
+ h+='<div class="notice privacy" style="margin-bottom:14px"><b>Simple mode:</b> use this if you mainly want the EAL tracker to save a backup in your Google Drive. You can ignore Advanced Integrations and iSAMS completely.</div>';
+ h+='<div class="grid two"><div class="card"><div class="section-title"><h3>1. Connect Google Drive</h3>'+badge(connected?"Connected":d.status,connected?"ok":"warn")+'</div><p class="small">The app requests only permission to create and update files it creates in Drive.</p><div class="field"><label>Google OAuth Web Client ID</label><input id="gdClientId" value="'+esc(d.clientId||"")+'" placeholder="1234567890-xxxx.apps.googleusercontent.com"></div><div class="actions" style="margin-top:10px"><button class="btn" onclick="saveDirectDriveConfig()">Save Client ID</button><button class="btn primary" onclick="connectDirectDrive()">Connect Drive</button>'+(connected?'<button class="btn" onclick="disconnectDirectDrive()">Disconnect</button>':"")+'</div><p class="small muted" style="margin-top:10px">A Client ID is safe to place in a web app. Never paste a Google client secret here.</p></div>';
+ h+='<div class="card"><div class="section-title"><h3>2. Backup & restore</h3></div><p class="small muted">Folder: '+esc(d.folderName||"EAL Progress Hub")+' · Last backup: '+(d.lastSync?new Date(d.lastSync).toLocaleString("en-GB"):"Never")+'</p><div class="actions"><button class="btn primary" onclick="directDriveBackup(false)" '+(connected?"":"disabled")+'>Back up now</button><button class="btn" onclick="directDriveRestore()" '+(connected?"":"disabled")+'>Restore latest</button>'+(d.folderId?'<a class="btn" href="https://drive.google.com/drive/folders/'+encodeURIComponent(d.folderId)+'" target="_blank" rel="noopener">Open Drive folder</a>':"")+'</div><label class="priority" style="margin-top:12px"><input type="checkbox" '+(d.autoSync?"checked":"")+' onchange="toggleDirectDriveAuto(this.checked)"><div><b>Auto-backup while the app is open</b><span>After Drive is connected, changes are backed up after a short delay. If Google expires the access token, press Connect Drive again.</span></div></label></div></div>';
+ h+='<div class="card" style="margin-top:14px"><h3>One-time Google setup</h3><ol class="small"><li>Open Google Cloud and enable the <b>Google Drive API</b>.</li><li>Create an OAuth 2.0 <b>Web application</b> client.</li><li>Add <code>https://markstevengray95-star.github.io</code> as an authorised JavaScript origin.</li><li>Copy the Client ID into this page and press <b>Connect Drive</b>.</li></ol><p class="small muted">The app creates its own folder called <b>EAL Progress Hub</b> and stores one JSON backup file inside it.</p></div>';
+ h+='<div class="card" style="margin-top:14px"><h3>Advanced integrations are optional</h3><p class="small">You only need the Integration Centre if you later want shared multi-user central data, school-wide account permissions, evidence-file uploads or MIS/iSAMS syncing. Google Drive backup works independently.</p></div>';
+ return h
+}
+window.saveDirectDriveConfig=function(){
+ var d=driveCfg(),el=document.getElementById("gdClientId");
+ d.clientId=(el?el.value:"").trim();
+ d.status=d.clientId?"Ready to connect":"Not connected";
+ localStorage.setItem(STORAGE,JSON.stringify(state));render();toast("Google Drive Client ID saved")
+}
+window.connectDirectDrive=function(){
+ var d=driveCfg(),el=document.getElementById("gdClientId"),clientId=(el?el.value:d.clientId||"").trim();
+ if(!clientId)return toast("Enter the Google OAuth Client ID first");
+ d.clientId=clientId;localStorage.setItem(STORAGE,JSON.stringify(state));
+ if(!window.google||!google.accounts||!google.accounts.oauth2)return toast("Google sign-in is still loading. Try Connect Drive again.");
+ directDriveTokenClient=google.accounts.oauth2.initTokenClient({
+  client_id:clientId,
+  scope:"https://www.googleapis.com/auth/drive.file",
+  callback:function(resp){
+   if(resp.error)return toast("Google Drive connection was not completed");
+   directDriveToken=resp.access_token||"";
+   d.status=directDriveToken?"Connected":"Not connected";
+   localStorage.setItem(STORAGE,JSON.stringify(state));
+   ensureDirectDriveFolder().then(function(){render();toast("Google Drive connected")}).catch(function(){d.status="Connection error";localStorage.setItem(STORAGE,JSON.stringify(state));render();toast("Could not create the Drive backup folder")})
+  }
+ });
+ directDriveTokenClient.requestAccessToken({prompt:"consent"})
+}
+window.disconnectDirectDrive=function(){
+ var d=driveCfg(),token=directDriveToken;
+ directDriveToken="";d.status="Not connected";localStorage.setItem(STORAGE,JSON.stringify(state));
+ if(token&&window.google&&google.accounts&&google.accounts.oauth2&&google.accounts.oauth2.revoke)google.accounts.oauth2.revoke(token,function(){});
+ render();toast("Google Drive disconnected")
+}
+async function directDriveFetch(url,opts){
+ if(!directDriveToken)throw Error("Google Drive is not connected");
+ opts=opts||{};opts.headers=Object.assign({},opts.headers||{},{"Authorization":"Bearer "+directDriveToken});
+ var res=await fetch(url,opts);
+ if(res.status===401){directDriveToken="";driveCfg().status="Reconnect required";localStorage.setItem(STORAGE,JSON.stringify(state));if(ui.view==="drive")render();throw Error("Google Drive session expired — connect again")}
+ if(!res.ok){var msg=await res.text();throw Error("Google Drive request failed ("+res.status+") "+msg.slice(0,100))}
+ return res
+}
+async function ensureDirectDriveFolder(){
+ var d=driveCfg();
+ if(d.folderId){
+  try{await directDriveFetch("https://www.googleapis.com/drive/v3/files/"+encodeURIComponent(d.folderId)+"?fields=id,name,mimeType");return d.folderId}catch(e){d.folderId=""}
+ }
+ var res=await directDriveFetch("https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:d.folderName||"EAL Progress Hub",mimeType:"application/vnd.google-apps.folder"})});
+ var folder=await res.json();d.folderId=folder.id||"";localStorage.setItem(STORAGE,JSON.stringify(state));return d.folderId
+}
+async function createDirectDriveBackupFile(folderId){
+ var d=driveCfg();
+ var res=await directDriveFetch("https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:"EAL Progress Hub Backup.json",mimeType:"application/json",parents:[folderId]})});
+ var file=await res.json();d.backupFileId=file.id||"";localStorage.setItem(STORAGE,JSON.stringify(state));return d.backupFileId
+}
+window.directDriveBackup=async function(silent){
+ var d=driveCfg();if(!directDriveToken){if(!silent)toast("Connect Google Drive first");return false}
+ try{
+  var folderId=await ensureDirectDriveFolder(),fileId=d.backupFileId||await createDirectDriveBackupFile(folderId),payload=JSON.stringify(directDriveCleanState(),null,2);
+  await directDriveFetch("https://www.googleapis.com/upload/drive/v3/files/"+encodeURIComponent(fileId)+"?uploadType=media",{method:"PATCH",headers:{"Content-Type":"application/json"},body:payload});
+  d.lastSync=new Date().toISOString();d.status="Connected";localStorage.setItem(STORAGE,JSON.stringify(state));
+  if(!silent){render();toast("Backed up to Google Drive")}return true
+ }catch(e){if(!silent)toast(e&&e.message?e.message:"Drive backup failed");return false}
+}
+async function findDirectDriveBackup(){
+ var d=driveCfg();if(d.backupFileId)return d.backupFileId;
+ var folderId=await ensureDirectDriveFolder(),q="'"+folderId+"' in parents and name='EAL Progress Hub Backup.json' and trashed=false";
+ var res=await directDriveFetch("https://www.googleapis.com/drive/v3/files?q="+encodeURIComponent(q)+"&orderBy=modifiedTime desc&fields=files(id,name,modifiedTime)&pageSize=5"),data=await res.json(),file=(data.files||[])[0];
+ if(file){d.backupFileId=file.id;localStorage.setItem(STORAGE,JSON.stringify(state));return file.id}return ""
+}
+window.directDriveRestore=async function(){
+ if(!directDriveToken)return toast("Connect Google Drive first");
+ try{
+  var id=await findDirectDriveBackup();if(!id)return toast("No EAL backup exists in this Drive yet");
+  var res=await directDriveFetch("https://www.googleapis.com/drive/v3/files/"+encodeURIComponent(id)+"?alt=media"),loaded=JSON.parse(await res.text());
+  if(!loaded||!Array.isArray(loaded.students))throw Error("The Drive file is not a valid EAL Progress Hub backup");
+  createRestorePoint();var keepDrive=driveCfg(),keepIntegrations=state.integrations;state=loaded;state.directDrive=keepDrive;state.integrations=keepIntegrations||loaded.integrations;ensureEnhancedData();localStorage.setItem(STORAGE,JSON.stringify(state));render();toast("Restored latest Google Drive backup")
+ }catch(e){toast(e&&e.message?e.message:"Could not restore Drive backup")}
+}
+window.toggleDirectDriveAuto=function(on){
+ driveCfg().autoSync=!!on;localStorage.setItem(STORAGE,JSON.stringify(state));toast(on?"Drive auto-backup enabled":"Drive auto-backup disabled")
+}
+function scheduleDirectDriveSync(){
+ var d=state&&state.directDrive;if(!d||!d.autoSync||!directDriveToken||d.status!=="Connected")return;
+ clearTimeout(directDriveTimer);directDriveTimer=setTimeout(function(){directDriveBackup(true)},2500)
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
@@ -1459,6 +1566,7 @@ function render(){
  else if(ui.view==="supporthub")html=renderSupportHub();
  else if(ui.view==="reviewhub")html=renderReviewHub();
  else if(ui.view==="adminhub")html=renderAdminHub();
+ else if(ui.view==="drive")html=renderDrive();
  else if(ui.view==="reading")html=renderReading();
  else if(ui.view==="assessments")html=renderAssessments();
  else if(ui.view==="interventions")html=renderInterventions();
