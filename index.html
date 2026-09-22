@@ -386,21 +386,13 @@ function renderStudent(){
  var s=studentById(ui.studentId);if(!s){ui.studentId=null;ui.view="students";return renderStudents()}
  var r=readingLatest(s),g=readingGap(s,r),lvl=levelFromSkills(s.proficiency);
  var h='<div class="profile-head"><div><button class="btn" onclick="setView(\'students\')" style="margin-bottom:10px">← Students</button><h2>'+esc(s.name)+'</h2><div>'+esc(s.year+" · "+s.form)+' · '+esc(lvl)+'</div><div class="profile-meta"><span>First language: '+(ui.privacy&&ui.role==="Teacher"?"Hidden":esc(s.firstLanguage))+'</span><span>Reading age: '+(r?ageText(r.readingMonths):"Not recorded")+'</span><span>Reading gap: '+(g==null?"—":(g>0?"+":"")+g+" months")+'</span><span>Next review: '+dateText(s.nextReview)+'</span></div></div><div class="actions">'+(roleCanEdit()?'<button class="btn" onclick="openObservation(\''+s.id+'\')">+ Observation</button><button class="btn" onclick="openQuickReading(\''+s.id+'\')">+ Reading age</button>':"")+(roleCanAdmin()?'<button class="btn danger" onclick="archiveStudent(\''+s.id+'\')">Archive</button>':"")+'</div></div>';
- var tabs=[["overview","Overview"],["eal","EAL Progress"],["reading","Reading"],["learning","Learning Tools"],["targets","Targets"],["interventions","Interventions"],["observations","Observations"],["subjects","Subject Progress"],["voice","Student Voice"],["family","Family & Context"],["evidence","Evidence"],["reviews","Reviews"],["passport","Passport"]];
+ var tabs=[["overview","Overview"],["assessment","Assessment"],["support","Support"],["evidence","Evidence & Voice"],["review","Review & Passport"]];
  h+='<div class="tabs">'+tabs.map(function(t){return '<button class="tab '+(ui.studentTab===t[0]?"active":"")+'" onclick="ui.studentTab=\''+t[0]+'\';render()">'+t[1]+'</button>'}).join("")+'</div>';
  if(ui.studentTab==="overview")h+=studentOverview(s);
- if(ui.studentTab==="eal")h+=studentEalEnhanced(s);
- if(ui.studentTab==="reading")h+=studentReading(s);
- if(ui.studentTab==="learning")h+=studentLearning(s);
- if(ui.studentTab==="targets")h+=studentTargetsEnhanced(s);
- if(ui.studentTab==="interventions")h+=studentInterventionsEnhanced(s);
- if(ui.studentTab==="observations")h+=studentObservations(s);
- if(ui.studentTab==="subjects")h+=studentSubjects(s);
- if(ui.studentTab==="voice")h+=studentVoiceEnhanced(s);
- if(ui.studentTab==="family")h+=studentFamily(s);
- if(ui.studentTab==="evidence")h+=studentEvidenceEnhanced(s);
- if(ui.studentTab==="reviews")h+=studentReviews(s);
- if(ui.studentTab==="passport")h+=studentPassport(s);
+ if(ui.studentTab==="assessment")h+=studentEalEnhanced(s)+studentReading(s);
+ if(ui.studentTab==="support")h+=studentLearning(s)+studentTargetsEnhanced(s)+studentInterventionsEnhanced(s);
+ if(ui.studentTab==="evidence")h+=studentObservations(s)+studentSubjects(s)+studentVoiceEnhanced(s)+studentFamily(s)+studentEvidenceEnhanced(s);
+ if(ui.studentTab==="review")h+=studentReviews(s)+studentPassport(s);
  return h
 }
 function studentOverview(s){
