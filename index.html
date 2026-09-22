@@ -1493,6 +1493,7 @@ function renderReviewHub(){
  hubCard("Review meeting workspace","Bring together reading, assessment, targets, interventions and pupil voice.","reviewmeeting")+
  hubCard("Cohorts & heatmap","Whole-school EAL analysis without ranking pupils.","cohorts")+
  hubCard("Reports","Generate pupil, parent and termly reports.","reports")+
+ hubCard("Printable support packs","Class sheets, new-arrival packs and parent information.","supportpacks")+
  hubCard("SLT / inspection","Anonymised provision and evidence overview.","slt")+
  hubCard("Calendar & reminders","See reassessments, reviews and actions due.","calendar")+
  '</div>';return h
@@ -2653,6 +2654,18 @@ window.submitTeacherFeedbackLink=function(id){
  document.getElementById("content").innerHTML='<div class="card" style="max-width:560px;margin:60px auto;text-align:center"><h2>Feedback saved</h2><p>Thank you.</p></div>'
 }
 
+
+function renderPackLauncher(){
+ var h=pageHead("Printable Support Packs","Class support sheets, new-arrival packs and parent information","");
+ h+='<div class="grid three">';
+ h+='<div class="card"><h3>Whole-class support sheet</h3><p class="small muted">Current stage, target and three key strategies for each pupil in a selected class.</p><button class="btn primary" onclick="printClassSupportSheet()">Choose class</button></div>';
+ h+='<div class="card"><h3>New-arrival starter pack</h3><p class="small muted">Checklist, background, baseline tasks and immediate classroom strategies.</p><select id="packArrivalStudent" style="width:100%;margin-bottom:10px">'+studentOptions()+'</select><button class="btn" onclick="launchNewArrivalPack()">Print pack</button></div>';
+ h+='<div class="card"><h3>Parent information pack</h3><p class="small muted">Strengths, current focus, school support and family-friendly suggestions.</p><select id="packParentStudent" style="width:100%;margin-bottom:10px">'+studentOptions()+'</select><button class="btn" onclick="launchParentPack()">Print pack</button></div>';
+ h+='</div>';return h
+}
+window.launchNewArrivalPack=function(){var el=document.getElementById("packArrivalStudent");if(el)printNewArrivalPack(el.value)}
+window.launchParentPack=function(){var el=document.getElementById("packParentStudent");if(el)printParentInformationPack(el.value)}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
@@ -2693,6 +2706,7 @@ function render(){
  else if(ui.view==="ealtest")html=renderEalTestPro();
  else if(ui.view==="cohorts")html=renderCohortsEnhanced();
  else if(ui.view==="reports")html=renderReportsEnhanced();
+ else if(ui.view==="supportpacks")html=renderPackLauncher();
  else if(ui.view==="slt")html=renderSlt();
  else if(ui.view==="tools")html=renderToolsEnhanced();
  else if(ui.view==="datatools")html=renderDataTools();
