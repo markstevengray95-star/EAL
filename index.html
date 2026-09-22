@@ -44,6 +44,7 @@ dialog{width:min(980px,96vw);border:0;border-radius:16px;padding:0;box-shadow:0 
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 <div class="auth-gate" id="authGate" hidden>
@@ -96,7 +97,7 @@ var coreSkills=["listening","speaking","reading","writing"];
 var skillLabels={listening:"Listening",speaking:"Speaking",reading:"Reading",writing:"Writing",vocabulary:"Vocabulary",grammar:"Grammar",academic:"Academic language",classroom:"Classroom communication"};
 var levels=["New to English","Early Acquisition","Developing Competence","Competent","Fluent"];
 var state;
-var centralClient=null,centralSyncTimer=null,directDriveToken="",directDriveTimer=null,directDriveTokenClient=null;
+var centralClient=null,centralSyncTimer=null,directDriveToken="",directDriveTimer=null,directDriveTokenClient=null,pendingStudentImport=null;
 var runtimeConfig=window.EAL_CONFIG||{};
 var ui={view:"dashboard",studentId:null,studentTab:"overview",studentFilter:"",yearFilter:"All",levelFilter:"All",privacy:false,role:"Administrator"};
 
@@ -128,30 +129,26 @@ function readingDue(s){var r=readingLatest(s);return !r||monthsBetween(r.date,to
 function interventionDue(s){return (s.interventions||[]).some(function(i){return i.status!=="Completed"&&i.reviewDate&&i.reviewDate<=today()})}
 function targetDue(s){return (s.targets||[]).some(function(t){return t.status!=="Completed"&&t.reviewDate&&t.reviewDate<=today()})}
 
-function demo(){
- var mk=function(name,year,form,dob,lang,country,skillVals,reads){return {
-   id:uid("stu"),name:name,preferredName:name.split(" ")[0],year:year,form:form,dob:dob,admissionDate:"2026-09-02",firstLanguage:lang,otherLanguages:[],country:country,ukEntry:"2024-09-01",previousSchooling:"Previous schooling discussed with family.",keyStaff:"EAL Team",strengths:"Positive attitude, visual learning and strong participation.",development:"Academic vocabulary and extended written responses.",notes:"Fictional demonstration record.",archived:false,nextReview:"2026-12-04",
-   proficiency:{listening:skillVals[0],speaking:skillVals[1],reading:skillVals[2],writing:skillVals[3],vocabulary:skillVals[4],grammar:skillVals[5],academic:skillVals[6],classroom:skillVals[7]},
-   readingAssessments:reads.map(function(r){return {id:uid("read"),date:r[0],test:"School reading assessment",readingMonths:r[1],standardScore:r[2],rawScore:"",assessor:"EAL Team",notes:""}}),
-   targets:[{id:uid("tar"),category:"Academic language",text:"Use subject-specific vocabulary accurately in a structured paragraph.",dateSet:"2026-09-08",reviewDate:"2026-10-20",status:"Developing",evidence:"Classwork samples"}],
-   interventions:[{id:uid("int"),name:"Academic vocabulary group",focus:"Tier 2 and Tier 3 vocabulary",startDate:"2026-09-10",endDate:"2026-12-01",reviewDate:"2026-10-22",frequency:"2 × 25 minutes weekly",staff:"EAL Team",baseline:"Needs prompts for unfamiliar academic terms.",target:"Use new vocabulary independently.",status:"Active",outcome:""}],
-   observations:[{id:uid("obs"),date:"2026-09-16",subject:"Science",listening:"Usually independent",speaking:"Full sentences",reading:"Developing independence",writing:"Developing",strength:"Uses diagrams well to infer meaning.",difficulty:"Long command words and extended explanations.",support:"Pre-teach key vocabulary; sentence starters.",comment:"Engaged well in pair discussion."}],
-   assessments:[{id:uid("ass"),date:"2026-09-08",skills:Object.assign({},function(){var o={};skills.forEach(function(k,i){o[k]=skillVals[i]});return o}()),assessor:"EAL Team",notes:"Baseline profile"}],
-   reviews:[],studentVoice:{speaking:3,instructions:4,reading:3,writing:2,help:4,easiest:"Maths",hardest:"English",goal:"Write longer answers with confidence."},
-   strategies:["Pre-teach essential vocabulary","Use visual examples and modelling","Give processing time before requesting an answer","Provide sentence starters for extended responses","Check understanding privately"],
-   vocab:[{id:uid("voc"),term:"analyse",type:"Tier 2",subject:"Across curriculum",status:"Developing"},{id:uid("voc"),term:"evaluate",type:"Tier 2",subject:"Across curriculum",status:"Emerging"}],
-   subjectProgress:{Science:"Developing",Maths:"Secure",English:"Developing",Humanities:"Developing"},evidence:[]
- }}
+function blankState(){
  return {
-  settings:{schoolName:"Demo School",readingIntervalMonths:3,reviewInterval:"Termly",academicYear:"2026/27",hideSensitiveInTeacherView:true},
-  students:[
-   mk("Amina Rahman","Year 8","8A","2013-05-12","Bengali","Bangladesh",[4,3,3,3,3,3,2,4],[["2026-01-20",124,91],["2026-05-19",130,94],["2026-09-10",136,96]]),
-   mk("Mateo Silva","Year 9","9B","2012-02-20","Portuguese","Brazil",[4,4,4,3,4,3,3,4],[["2026-02-14",137,97],["2026-06-18",143,99],["2026-09-12",147,101]]),
-   mk("Yuna Park","Year 7","7C","2014-08-03","Korean","South Korea",[3,2,3,2,2,2,2,3],[["2026-05-23",118,89],["2026-09-09",123,91]]),
-   mk("Omar Haddad","Year 10","10A","2011-01-14","Arabic","Jordan",[4,4,3,3,4,3,3,4],[["2026-03-11",139,90],["2026-06-17",145,93],["2026-09-14",149,94]]),
-   mk("Sofia Marin","Year 11","11B","2010-06-22","Romanian","Romania",[5,4,4,4,4,4,4,5],[["2026-02-02",164,101],["2026-06-06",169,103],["2026-09-08",173,105]]),
-   mk("Wei Chen","Year 8","8B","2013-10-09","Mandarin Chinese","China",[3,3,3,2,3,2,2,3],[["2026-01-13",120,88],["2026-05-15",126,90],["2026-09-11",130,92]])
-  ],archive:[],audit:[{id:uid("audit"),date:new Date().toISOString(),user:"System",action:"Demo data created"}]
+  settings:{schoolName:"School",readingIntervalMonths:3,reviewInterval:"Termly",academicYear:"2026/27",hideSensitiveInTeacherView:true},
+  students:[],
+  archive:[],
+  audit:[{id:uid("audit"),date:new Date().toISOString(),user:"System",action:"Blank EAL workspace created"}]
+ }
+}
+function removeLegacyDemoData(){
+ var demoNames=new Set(["Amina Rahman","Mateo Silva","Yuna Park","Omar Haddad","Sofia Marin","Wei Chen"]);
+ if(!state||!Array.isArray(state.students))return;
+ var before=state.students.length;
+ state.students=state.students.filter(function(s){
+  return !(demoNames.has(s.name)&&String(s.notes||"").indexOf("Fictional demonstration record")>-1)
+ });
+ if(state.settings&&state.settings.schoolName==="Demo School")state.settings.schoolName="School";
+ if(state.students.length!==before){
+  state.audit=state.audit||[];
+  state.audit.unshift({id:uid("audit"),date:new Date().toISOString(),user:"System",action:"Removed legacy fictional demo pupils"});
+  localStorage.setItem(STORAGE,JSON.stringify(state))
  }
 }
 
@@ -165,7 +162,7 @@ function applyRuntimeConfig(){
  cfg.requireSignIn=runtimeConfig.requireSignIn===true;
  if(runtimeConfig.schoolName)state.settings.schoolName=String(runtimeConfig.schoolName)
 }
-function load(){try{var s=JSON.parse(localStorage.getItem(STORAGE));state=s&&s.students?s:demo()}catch(e){state=demo()}ensureEnhancedData();applyRuntimeConfig();applyBranding();ui.role=localStorage.getItem("ealRole")||"Administrator";document.getElementById("roleSelect").value=ui.role}
+function load(){try{var s=JSON.parse(localStorage.getItem(STORAGE));state=s&&Array.isArray(s.students)?s:blankState()}catch(e){state=blankState()}removeLegacyDemoData();ensureEnhancedData();applyRuntimeConfig();applyBranding();ui.role=localStorage.getItem("ealRole")||"Administrator";document.getElementById("roleSelect").value=ui.role}
 function setView(v){ui.view=v;ui.studentId=null;document.querySelectorAll("#nav button").forEach(function(b){b.classList.toggle("active",b.dataset.view===v)});render()}
 function pageHead(title,sub,actions){return '<div class="page-head"><div><h2>'+esc(title)+'</h2><p>'+esc(sub||"")+'</p></div><div class="actions">'+(actions||"")+'</div></div>'}
 function badge(text,type){return '<span class="badge '+(type||"")+'">'+esc(text)+'</span>'}
@@ -290,7 +287,7 @@ function renderSettings(){
  h+='<div class="grid two"><div class="card"><h3>School configuration</h3><div class="form-grid"><div class="field full"><label>School name</label><input value="'+esc(state.settings.schoolName)+'" onchange="updateSetting(\'schoolName\',this.value)"></div><div class="field"><label>Academic year</label><input value="'+esc(state.settings.academicYear)+'" onchange="updateSetting(\'academicYear\',this.value)"></div><div class="field"><label>Reading reassessment interval (months)</label><input type="number" min="1" max="24" value="'+esc(state.settings.readingIntervalMonths)+'" onchange="updateSetting(\'readingIntervalMonths\',Number(this.value))"></div></div><div class="notice privacy" style="margin-top:12px">For real pupil data, replace browser-only storage with your school-approved authenticated backend. Do not send pupil data to external AI services unless your school has explicitly approved that processing.</div></div>';
  h+='<div class="card"><div class="section-title"><h3>Data quality checker</h3>'+badge(missing+" profiles to check",missing?"warn":"ok")+'</div>';
  currentStudents().forEach(function(s){var issues=[];if(!readingLatest(s))issues.push("reading age missing");if(!s.nextReview)issues.push("review date missing");if(!(s.targets||[]).length)issues.push("no current target");if(issues.length)h+='<div class="priority"><div><b>'+esc(s.name)+'</b><span>'+esc(issues.join(" · "))+'</span></div></div>'});if(!missing)h+='<div class="empty">No basic data-quality issues found.</div>';h+='</div></div>';
- h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Demo & data controls</h3></div><div class="actions"><button class="btn" onclick="exportCsv()">Export student CSV</button><button class="btn" onclick="importCsv()">Import CSV</button><button class="btn danger" onclick="resetDemo()">Reset to fictional demo data</button></div></div>';
+ h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Student data controls</h3></div><div class="actions"><button class="btn" onclick="exportCsv()">Export student CSV</button><button class="btn" onclick="openStudentSpreadsheetImport()">Import Excel / CSV</button><button class="btn" onclick="downloadStudentImportTemplate()">Download Excel template</button><button class="btn danger" onclick="resetBlank()">Clear local data</button></div></div>';
  h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Audit trail</h3><span class="small muted">Latest 40 changes</span></div><div class="table-wrap"><table><thead><tr><th>Date/time</th><th>Role</th><th>Action</th></tr></thead><tbody>'+state.audit.slice(0,40).map(function(a){return '<tr><td>'+new Date(a.date).toLocaleString("en-GB")+'</td><td>'+esc(a.user)+'</td><td>'+esc(a.action)+'</td></tr>'}).join("")+'</tbody></table></div></div>';
  return h
 }
@@ -507,7 +504,7 @@ window.exportBackup=function(){var blob=new Blob([JSON.stringify(state,null,2)],
 window.importBackup=function(){var f=document.getElementById("fileInput");f.accept=".json";f.onchange=function(){var file=f.files[0];if(!file)return;var r=new FileReader();r.onload=function(){try{var d=JSON.parse(r.result);if(!d.students)throw Error();state=d;save("Imported full backup");render();toast("Backup imported")}catch(e){toast("That backup could not be read")}};r.readAsText(file)};f.click()}
 window.exportCsv=function(){var cols=["name","year","form","dob","firstLanguage","country","ukEntry","keyStaff"],lines=[cols.join(",")];currentStudents().forEach(function(s){lines.push(cols.map(function(k){return '"'+String(s[k]||"").replace(/"/g,'""')+'"'}).join(","))});var b=new Blob([lines.join("\n")],{type:"text/csv"}),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="eal-register-"+today()+".csv";a.click();URL.revokeObjectURL(a.href);toast("CSV exported")}
 window.importCsv=function(){var f=document.getElementById("fileInput");f.accept=".csv";f.onchange=function(){var file=f.files[0];if(!file)return;var r=new FileReader();r.onload=function(){var lines=String(r.result).split(/\r?\n/).filter(Boolean);if(lines.length<2)return toast("No data rows found");var headers=lines[0].split(",").map(function(x){return x.replace(/^"|"$/g,"")});lines.slice(1).forEach(function(line){var vals=line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g)||[];var o={};headers.forEach(function(h,i){o[h]=String(vals[i]||"").replace(/^"|"$/g,"").replace(/""/g,'"')});if(!o.name)return;var p={};skills.forEach(function(k){p[k]=2});state.students.push({id:uid("stu"),name:o.name,preferredName:o.name.split(" ")[0],year:o.year||"Year 7",form:o.form||"",dob:o.dob||"2013-01-01",admissionDate:today(),firstLanguage:o.firstLanguage||"",otherLanguages:[],country:o.country||"",ukEntry:o.ukEntry||"",previousSchooling:"",keyStaff:o.keyStaff||"EAL Team",strengths:"",development:"",notes:"Imported from CSV",archived:false,nextReview:"",proficiency:p,readingAssessments:[],targets:[],interventions:[],observations:[],assessments:[],reviews:[],studentVoice:{},strategies:["Pre-teach essential vocabulary","Use visual examples","Allow processing time"],vocab:[],subjectProgress:{},evidence:[]})});save("Imported students from CSV");render();toast("CSV import completed")};r.readAsText(file)};f.click()}
-window.resetDemo=function(){if(!confirm("Replace current browser data with fictional demo data? Download a backup first if needed."))return;state=demo();save("Reset demo data");render();toast("Demo data restored")}
+window.resetBlank=function(){if(!confirm("Clear all current local EAL data and start with a blank workspace? Download a backup first if needed."))return;state=blankState();ensureEnhancedData();save("Cleared local data and started blank workspace");render();toast("Blank workspace created")}
 
 function globalSearch(q){q=q.trim().toLowerCase();if(!q)return;var found=currentStudents().find(function(s){return [s.name,s.firstLanguage,s.year,s.form].join(" ").toLowerCase().indexOf(q)>-1});if(found)openStudent(found.id);else toast("No matching student found")}
 
@@ -798,7 +795,7 @@ function onboardingPct(s){
 function renderStudentsEnhanced(){
  var years=["All"].concat(Array.from(new Set(currentStudents().map(function(s){return s.year}))).sort());
  var langs=["All"].concat(Array.from(new Set(currentStudents().map(function(s){return s.firstLanguage}).filter(Boolean))).sort());
- var act=roleCanEdit()?'<button class="btn primary" onclick="openAddStudent()">+ Add student</button><button class="btn" onclick="printEalRegister()">Print register</button><button class="btn" onclick="exportCsv()">Export CSV</button>':'<button class="btn" onclick="printEalRegister()">Print register</button>';
+ var act=roleCanEdit()?'<button class="btn primary" onclick="openAddStudent()">+ Add student</button><button class="btn" onclick="openStudentSpreadsheetImport()">Import Excel / CSV</button><button class="btn" onclick="downloadStudentImportTemplate()">Template</button><button class="btn" onclick="printEalRegister()">Print register</button><button class="btn" onclick="exportCsv()">Export CSV</button>':'<button class="btn" onclick="printEalRegister()">Print register</button>';
  var h=pageHead("Students","Search, filter and manage the whole-school EAL register",act);
  h+='<div class="filters"><input placeholder="Search pupil, language, staff, strategy or need…" value="'+esc(ui.studentFilter||"")+'" oninput="ui.studentFilter=this.value;render()"><select onchange="ui.yearFilter=this.value;render()">'+years.map(function(y){return '<option '+((ui.yearFilter||"All")===y?"selected":"")+'>'+esc(y)+'</option>'}).join("")+'</select><select onchange="ui.levelFilter=this.value;render()"><option>All</option>'+levels.map(function(l){return '<option '+((ui.levelFilter||"All")===l?"selected":"")+'>'+esc(l)+'</option>'}).join("")+'</select><select onchange="ui.languageFilter=this.value;render()">'+langs.map(function(l){return '<option '+((ui.languageFilter||"All")===l?"selected":"")+'>'+esc(l)+'</option>'}).join("")+'</select><select onchange="ui.actionFilter=this.value;render()"><option>All actions</option><option>Review due</option><option>Reading due</option><option>Intervention active</option><option>New arrival incomplete</option></select></div>';
  var q=(ui.studentFilter||"").toLowerCase(),list=currentStudents().filter(function(s){
@@ -1994,6 +1991,117 @@ function renderStudentTestsHome(){
  h+='</div></div>';
  h+='<div class="notice privacy" style="margin-top:14px">Forms A and B are original school-built assessments. Imported commercial/publisher tests appear here only if your school has recorded permission to reproduce and administer them online.</div>';
  return h
+}
+
+
+var studentImportFields=[
+ {key:"externalId",label:"Student / MIS ID",aliases:["student id","studentid","pupil id","pupilid","mis id","misid","external id","externalid","admission number","admission no"]},
+ {key:"name",label:"Full name",aliases:["name","student name","pupil name","full name","fullname"]},
+ {key:"preferredName",label:"Preferred name",aliases:["preferred name","known as","forename preferred"]},
+ {key:"dob",label:"Date of birth",aliases:["dob","date of birth","birth date","dateofbirth"]},
+ {key:"year",label:"Year group",aliases:["year","year group","yeargroup","school year"]},
+ {key:"form",label:"Form / tutor group",aliases:["form","form group","tutor group","registration group","reg group"]},
+ {key:"admissionDate",label:"Admission date",aliases:["admission date","start date","date joined","entry date"]},
+ {key:"firstLanguage",label:"First language",aliases:["first language","home language","language","language 1","mother tongue"]},
+ {key:"otherLanguages",label:"Other languages",aliases:["other languages","additional languages","languages"]},
+ {key:"country",label:"Country / background",aliases:["country","country of origin","nationality"]},
+ {key:"ukEntry",label:"Entered UK education",aliases:["uk entry","uk education date","entered uk education","date entered uk"]},
+ {key:"keyStaff",label:"Key staff",aliases:["key staff","eal staff","case owner","owner"]},
+ {key:"attendancePercent",label:"Attendance %",aliases:["attendance","attendance %","attendance percent","attendance percentage"]},
+ {key:"notes",label:"Notes",aliases:["notes","comment","comments","additional information"]}
+];
+function normaliseImportHeader(v){return String(v||"").trim().toLowerCase().replace(/[_-]+/g," ").replace(/\s+/g," ")}
+function inferImportColumn(headers,field){
+ var aliases=[field.label].concat(field.aliases||[]).map(normaliseImportHeader),norm=headers.map(normaliseImportHeader);
+ for(var i=0;i<aliases.length;i++){var idx=norm.indexOf(aliases[i]);if(idx>-1)return headers[idx]}
+ return ""
+}
+function spreadsheetDateToIso(v){
+ if(v==null||v==="")return "";
+ if(v instanceof Date&&!isNaN(v))return v.toISOString().slice(0,10);
+ var s=String(v).trim();
+ var iso=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(iso)return iso[1]+"-"+String(iso[2]).padStart(2,"0")+"-"+String(iso[3]).padStart(2,"0");
+ var uk=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);if(uk){var y=uk[3].length===2?"20"+uk[3]:uk[3];return y+"-"+String(uk[2]).padStart(2,"0")+"-"+String(uk[1]).padStart(2,"0")}
+ return s
+}
+function emptyStudentFromImport(row){
+ var p={};skills.forEach(function(k){p[k]=2});
+ return {
+  id:uid("stu"),externalId:row.externalId||"",name:row.name,preferredName:row.preferredName||String(row.name||"").split(" ")[0],
+  year:row.year||"",form:row.form||"",dob:row.dob||"",admissionDate:row.admissionDate||"",firstLanguage:row.firstLanguage||"",
+  otherLanguages:row.otherLanguages?String(row.otherLanguages).split(/[;,]/).map(function(x){return x.trim()}).filter(Boolean):[],
+  country:row.country||"",ukEntry:row.ukEntry||"",previousSchooling:"",keyStaff:row.keyStaff||"EAL Team",strengths:"",development:"",
+  notes:row.notes||"Imported from spreadsheet",archived:false,nextReview:"",proficiency:p,readingAssessments:[],targets:[],interventions:[],
+  observations:[],assessments:[],reviews:[],studentVoice:{},strategies:["Pre-teach essential vocabulary","Use visual examples and modelling","Allow additional processing time","Provide sentence starters","Check understanding privately"],
+  vocab:[],subjectProgress:{Science:"Not assessed",Maths:"Not assessed",English:"Not assessed",Humanities:"Not assessed"},evidence:[],
+  communicationLog:[],readingLog:[],voiceHistory:[],ealTests:[],attendance:{percent:row.attendancePercent||"",note:""},newArrival:{},
+  additionalNeedsEvidence:[],parentReportLanguage:state.settings.parentReportLanguage||"English",history:[]
+ }
+}
+function findStudentImportMatch(row){
+ var ext=String(row.externalId||"").trim();
+ if(ext){var byExt=currentStudents().find(function(s){return String(s.externalId||"").trim()===ext});if(byExt)return byExt}
+ var name=String(row.name||"").trim().toLowerCase(),dob=String(row.dob||"").trim();
+ if(name&&dob){var byDob=currentStudents().find(function(s){return String(s.name||"").trim().toLowerCase()===name&&String(s.dob||"").trim()===dob});if(byDob)return byDob}
+ if(name&&row.year&&row.form)return currentStudents().find(function(s){return String(s.name||"").trim().toLowerCase()===name&&String(s.year||"")===String(row.year)&&String(s.form||"")===String(row.form)})
+ return null
+}
+function applyImportedStudentData(s,row){
+ ["externalId","name","preferredName","year","form","dob","admissionDate","firstLanguage","country","ukEntry","keyStaff","notes"].forEach(function(k){if(row[k]!==undefined&&row[k]!==null&&String(row[k]).trim()!=="")s[k]=String(row[k]).trim()});
+ if(row.otherLanguages!==undefined&&String(row.otherLanguages).trim()!=="")s.otherLanguages=String(row.otherLanguages).split(/[;,]/).map(function(x){return x.trim()}).filter(Boolean);
+ if(row.attendancePercent!==undefined&&String(row.attendancePercent).trim()!==""){s.attendance=s.attendance||{};s.attendance.percent=String(row.attendancePercent).replace("%","").trim()}
+}
+window.openStudentSpreadsheetImport=function(){
+ var file=document.getElementById("fileInput");file.accept=".xlsx,.xls,.csv";file.value="";
+ file.onchange=function(){
+  var selected=file.files&&file.files[0];if(!selected)return;
+  if(!window.XLSX)return toast("Excel import library is still loading. Try again in a moment.");
+  var reader=new FileReader();
+  reader.onload=function(){
+   try{
+    var wb=XLSX.read(reader.result,{type:"array",cellDates:true}),sheetName=wb.SheetNames[0],ws=wb.Sheets[sheetName],rows=XLSX.utils.sheet_to_json(ws,{defval:"",raw:false,dateNF:"yyyy-mm-dd"});
+    if(!rows.length)return toast("No student rows found in the first sheet");
+    var headers=Object.keys(rows[0]);pendingStudentImport={fileName:selected.name,sheetName:sheetName,headers:headers,rows:rows};
+    openStudentImportMapping()
+   }catch(e){toast("Could not read spreadsheet: "+e.message)}
+  };
+  reader.readAsArrayBuffer(selected)
+ };
+ file.click()
+}
+function importMappingSelect(field,headers){
+ var inferred=inferImportColumn(headers,field);
+ return '<div class="field"><label>'+esc(field.label)+'</label><select id="imp_'+field.key+'"><option value="">— Not mapped —</option>'+headers.map(function(h){return '<option value="'+esc(h)+'" '+(h===inferred?"selected":"")+'>'+esc(h)+'</option>'}).join("")+'</select></div>'
+}
+window.openStudentImportMapping=function(){
+ var imp=pendingStudentImport;if(!imp)return toast("Choose a spreadsheet first");
+ var preview=imp.rows.slice(0,5),html='<div class="notice"><b>'+esc(imp.fileName)+'</b> · sheet '+esc(imp.sheetName)+' · '+imp.rows.length+' row(s). Map your spreadsheet columns below. Only mapped fields will be synced.</div><div class="form-grid" style="margin-top:10px">'+studentImportFields.map(function(f){return importMappingSelect(f,imp.headers)}).join("")+'</div>';
+ html+='<label class="priority"><input type="checkbox" id="impUpdateExisting" checked><div><b>Update matching existing pupils</b><span>Matches use Student/MIS ID first, then exact name + DOB. Unmatched rows create new pupil profiles.</span></div></label>';
+ html+='<div class="card" style="margin-top:12px"><h3>Preview</h3><div class="table-wrap"><table><thead><tr>'+imp.headers.slice(0,8).map(function(h){return "<th>"+esc(h)+"</th>"}).join("")+'</tr></thead><tbody>'+preview.map(function(r){return "<tr>"+imp.headers.slice(0,8).map(function(h){return "<td>"+esc(r[h])+"</td>"}).join("")+"</tr>"}).join("")+'</tbody></table></div></div>';
+ modal("Import students from Excel / CSV",html,"Import & sync",function(){commitStudentSpreadsheetImport()})
+}
+window.commitStudentSpreadsheetImport=function(){
+ var imp=pendingStudentImport;if(!imp)return;
+ var map={};studentImportFields.forEach(function(f){var el=document.getElementById("imp_"+f.key);map[f.key]=el?el.value:""});
+ if(!map.name)return toast("Map the Full name column before importing");
+ var updateExisting=document.getElementById("impUpdateExisting").checked,created=0,updated=0,skipped=0;
+ createRestorePoint();
+ imp.rows.forEach(function(raw){
+  var row={};studentImportFields.forEach(function(f){var col=map[f.key];if(col)row[f.key]=raw[col]});
+  row.name=String(row.name||"").trim();if(!row.name){skipped++;return}
+  row.dob=spreadsheetDateToIso(row.dob);row.admissionDate=spreadsheetDateToIso(row.admissionDate);row.ukEntry=spreadsheetDateToIso(row.ukEntry);
+  var match=findStudentImportMatch(row);
+  if(match&&updateExisting){applyImportedStudentData(match,row);updated++}
+  else if(match&&!updateExisting){skipped++}
+  else{state.students.push(emptyStudentFromImport(row));created++}
+ });
+ ensureEnhancedData();save("Spreadsheet sync: "+created+" created, "+updated+" updated, "+skipped+" skipped");pendingStudentImport=null;closeModal();setView("students");toast(created+" created · "+updated+" updated · "+skipped+" skipped")
+}
+window.downloadStudentImportTemplate=function(){
+ if(!window.XLSX)return toast("Excel library is still loading. Try again in a moment.");
+ var headers=["Student ID","Name","Preferred Name","DOB","Year","Form","Admission Date","First Language","Other Languages","Country","UK Entry","Key Staff","Attendance %","Notes"];
+ var example=["12345","Example Student","Example","2013-05-12","Year 8","8A","2026-09-01","Arabic","English; French","Jordan","2024-09-01","EAL Team","96.5",""];
+ var ws=XLSX.utils.aoa_to_sheet([headers,example]),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Students");XLSX.writeFile(wb,"EAL_Student_Import_Template.xlsx")
 }
 
 function render(){
