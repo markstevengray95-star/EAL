@@ -1,45 +1,5 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const cors = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...cors, "Content-Type": "application/json" },
-  });
-}
-
-async function authContext(req: Request) {
-  const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
-  if (!token) throw new Error("Missing auth token");
-
-  const url = Deno.env.get("SUPABASE_URL")!;
-  const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-  const authClient = createClient(url, anon, {
-    global: { headers: { Authorization: "Bearer " + token } },
-  });
-  const { data, error } = await authClient.auth.getUser(token);
-  if (error || !data.user) throw new Error("Invalid user");
-
-  return { user: data.user, admin: createClient(url, service) };
-}
-
-async function currentMembership(admin: any, userId: string, schoolId: string) {
-  const { data, error } = await admin
-    .from("school_memberships")
-    .select("role")
-    .eq("school_id", schoolId)
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error || !data) throw new Error("No school membership");
-  return data.role as string;
-}
+import { authContext, membership as currentMembership } from "../_shared/auth.ts";
+import { handleOptions, json } from "../_shared/http.ts";
 
 async function userMap(admin: any) {
   const map = new Map<string, string>();
@@ -71,9 +31,28 @@ async function findUserByEmail(admin: any, email: string) {
 
 const roles = ["administrator", "eal_coordinator", "teacher", "senior_leadership", "read_only"];
 
+async function ensureAnotherAdministrator(admin: any, schoolId: string, targetUserId: string) {
+  const target = await admin
+    .from("school_memberships")
+    .select("role")
+    .eq("school_id", schoolId)
+    .eq("user_id", targetUserId)
+    .maybeSingle();
+  if (target.error) throw target.error;
+  if (target.data?.role !== "administrator") return;
+
+  const admins = await admin
+    .from("school_memberships")
+    .select("user_id", { count: "exact", head: true })
+    .eq("school_id", schoolId)
+    .eq("role", "administrator");
+  if (admins.error) throw admins.error;
+  if ((admins.count || 0) <= 1) throw new Error("Add another administrator before removing the last administrator account");
+}
+
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
-  if (req.method !== "POST") return json({ error: "POST required" }, 405);
+  if (req.method === "OPTIONS") return handleOptions(req);
+  if (req.method !== "POST") return json(req, { error: "POST required" }, 405);
 
   try {
     const { user, admin } = await authContext(req);
@@ -86,7 +65,7 @@ Deno.serve(async (req) => {
 
     if (action === "list") {
       if (!["administrator", "eal_coordinator"].includes(role)) {
-        return json({ error: "Staff access list requires administrator or EAL coordinator access" }, 403);
+        return json(req, { error: "Staff access list requires administrator or EAL coordinator access" }, 403);
       }
       const { data, error } = await admin
         .from("school_memberships")
@@ -96,7 +75,7 @@ Deno.serve(async (req) => {
       if (error) throw error;
 
       const emails = await userMap(admin);
-      return json({
+      return json(req, {
         members: (data || []).map((m: any) => ({
           userId: m.user_id,
           email: emails.get(m.user_id) || "",
@@ -108,7 +87,7 @@ Deno.serve(async (req) => {
     }
 
     if (role !== "administrator") {
-      return json({ error: "Only a school administrator can change staff access" }, 403);
+      return json(req, { error: "Only a school administrator can change staff access" }, 403);
     }
 
     if (action === "add") {
@@ -116,10 +95,15 @@ Deno.serve(async (req) => {
       const newRole = String(body.role || "teacher");
       if (!email) throw new Error("email required");
       if (!roles.includes(newRole)) throw new Error("invalid role");
+      const allowedDomain = (Deno.env.get("AUTH_ALLOWED_EMAIL_DOMAIN") || "").trim().replace(/^@/, "").toLowerCase();
+      if (allowedDomain && (email.split("@")[1] || "") !== allowedDomain) {
+        return json(req, { error: "Staff access is restricted to the authorised school email domain" }, 400);
+      }
 
       const target = await findUserByEmail(admin, email);
       if (!target) {
         return json(
+          req,
           { error: "That staff account has not signed in yet. Ask them to sign in once, then add them here." },
           404,
         );
@@ -132,13 +116,14 @@ Deno.serve(async (req) => {
       });
       if (error) throw error;
 
-      return json({ ok: true, userId: target.id, email, role: newRole });
+      return json(req, { ok: true, userId: target.id, email, role: newRole });
     }
 
     if (action === "update") {
       const targetUserId = String(body.userId || "");
       const newRole = String(body.role || "");
       if (!targetUserId || !roles.includes(newRole)) throw new Error("userId and valid role required");
+      if (newRole !== "administrator") await ensureAnotherAdministrator(admin, schoolId, targetUserId);
 
       const { error } = await admin
         .from("school_memberships")
@@ -147,15 +132,16 @@ Deno.serve(async (req) => {
         .eq("user_id", targetUserId);
       if (error) throw error;
 
-      return json({ ok: true });
+      return json(req, { ok: true });
     }
 
     if (action === "remove") {
       const targetUserId = String(body.userId || "");
       if (!targetUserId) throw new Error("userId required");
       if (targetUserId === user.id) {
-        return json({ error: "You cannot remove your own administrator access from this screen." }, 400);
+        return json(req, { error: "You cannot remove your own administrator access from this screen." }, 400);
       }
+      await ensureAnotherAdministrator(admin, schoolId, targetUserId);
 
       const { error } = await admin
         .from("school_memberships")
@@ -164,11 +150,11 @@ Deno.serve(async (req) => {
         .eq("user_id", targetUserId);
       if (error) throw error;
 
-      return json({ ok: true });
+      return json(req, { ok: true });
     }
 
-    return json({ error: "Unknown action" }, 400);
+    return json(req, { error: "Unknown action" }, 400);
   } catch (e) {
-    return json({ error: String(e instanceof Error ? e.message : e) }, 400);
+    return json(req, { error: String(e instanceof Error ? e.message : e) }, 400);
   }
 });

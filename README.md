@@ -18,8 +18,10 @@ Whole-school EAL student progress and reading-age tracker for UK schools.
 ## Running the app
 Open `index.html` in a browser or deploy this repository as a static site. No build step is required.
 
-## Data
-The first version stores data in the browser's local storage so it works immediately without external setup. This is suitable for demonstration and prototyping. Before using real pupil data, connect the app to a school-approved authenticated backend and complete your school's data-protection/security review.
+## Data and school integrations
+The app starts in fictional demo mode when no school backend is configured. The repository now includes a production Supabase architecture with Google Workspace staff login, server-enforced roles, shared central data, direct configurable iSAMS sync, and protected Google Drive evidence storage/linking.
+
+Real pupil data must only be used after the school-owned services and data-protection controls are configured. Follow `SCHOOL_INTEGRATION_SETUP.md`.
 
 All demo pupils are fictional.
 

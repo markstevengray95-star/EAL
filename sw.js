@@ -1,4 +1,4 @@
-const CACHE="eal-progress-hub-v10";
+const CACHE="eal-progress-hub-v11-integrations";
 const ASSETS=["./","./index.html","./manifest.webmanifest"];
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));
@@ -9,8 +9,14 @@ self.addEventListener("activate",event=>{
 self.addEventListener("fetch",event=>{
   if(event.request.method!=="GET")return;
   event.respondWith(fetch(event.request).then(response=>{
-    const copy=response.clone();
-    caches.open(CACHE).then(cache=>cache.put(event.request,copy));
+    if(response.ok&&new URL(event.request.url).origin===self.location.origin){
+      const copy=response.clone();
+      caches.open(CACHE).then(cache=>cache.put(event.request,copy));
+    }
     return response;
-  }).catch(()=>caches.match(event.request).then(cached=>cached||caches.match("./index.html"))));
+  }).catch(()=>caches.match(event.request).then(async cached=>{
+    if(cached)return cached;
+    if(event.request.mode==="navigate")return (await caches.match("./index.html"))||Response.error();
+    return new Response("Offline",{status:503,headers:{"Content-Type":"text/plain; charset=utf-8"}});
+  })));
 });

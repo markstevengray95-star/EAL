@@ -28,6 +28,14 @@ jobs:
         uses: actions/configure-pages@v5
         with:
           enablement: true
+      - name: Build school runtime configuration
+        env:
+          EAL_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          EAL_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          EAL_ALLOWED_EMAIL_DOMAIN: ${{ vars.SCHOOL_EMAIL_DOMAIN }}
+          EAL_SCHOOL_NAME: ${{ vars.SCHOOL_NAME }}
+          EAL_REQUIRE_SIGN_IN: ${{ vars.REQUIRE_SIGN_IN }}
+        run: node scripts/build-config.mjs
       - name: Upload site
         uses: actions/upload-pages-artifact@v4
         with:

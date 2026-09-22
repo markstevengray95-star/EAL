@@ -1,13 +1,22 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { authContext, membership, requireRole } from "../_shared/auth.ts";
+import { handleOptions, json } from "../_shared/http.ts";
 
-const cors = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+const editableRoles = ["administrator", "eal_coordinator", "teacher"] as const;
+const maxBytes = 8 * 1024 * 1024;
+const allowedMimeTypes = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "image/png",
+  "image/jpeg",
+  "text/plain",
+  "text/csv",
+]);
 
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
+function requiredEnv(name: string) {
+  const value = Deno.env.get(name) || "";
+  if (!value) throw new Error(`${name} is not configured`);
+  return value;
 }
 
 function b64ToBytes(value: string) {
@@ -18,133 +27,224 @@ function b64ToBytes(value: string) {
 }
 
 function concatBytes(parts: Uint8Array[]) {
-  const total = parts.reduce((n, p) => n + p.length, 0);
+  const total = parts.reduce((sum, part) => sum + part.length, 0);
   const out = new Uint8Array(total);
   let offset = 0;
-  for (const p of parts) { out.set(p, offset); offset += p.length; }
+  for (const part of parts) {
+    out.set(part, offset);
+    offset += part.length;
+  }
   return out;
 }
 
-async function authContext(req: Request) {
-  const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
-  if (!token) throw new Error("Missing auth token");
-  const url = Deno.env.get("SUPABASE_URL")!;
-  const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const authClient = createClient(url, anon, { global: { headers: { Authorization: "Bearer " + token } } });
-  const { data, error } = await authClient.auth.getUser(token);
-  if (error || !data.user) throw new Error("Invalid user");
-  return { user: data.user, admin: createClient(url, service) };
-}
-
-async function assertMembership(admin: any, userId: string, schoolId: string) {
-  const { data, error } = await admin.from("school_memberships").select("role").eq("school_id", schoolId).eq("user_id", userId).maybeSingle();
-  if (error || !data) throw new Error("No school membership");
-  if (!["administrator","eal_coordinator","teacher"].includes(data.role)) throw new Error("Insufficient role");
-  return data.role;
+function safeFileName(value: string) {
+  return value.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").replace(/\s+/g, " ").trim().slice(0, 180);
 }
 
 async function googleAccessToken() {
   const body = new URLSearchParams({
-    client_id: Deno.env.get("GOOGLE_CLIENT_ID") || "",
-    client_secret: Deno.env.get("GOOGLE_CLIENT_SECRET") || "",
-    refresh_token: Deno.env.get("GOOGLE_REFRESH_TOKEN") || "",
+    client_id: requiredEnv("GOOGLE_CLIENT_ID"),
+    client_secret: requiredEnv("GOOGLE_CLIENT_SECRET"),
+    refresh_token: requiredEnv("GOOGLE_REFRESH_TOKEN"),
     grant_type: "refresh_token",
   });
-  const r = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
-  if (!r.ok) throw new Error("Google token refresh failed");
-  const data = await r.json();
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  if (!response.ok) throw new Error(`Google token refresh failed (${response.status})`);
+  const data = await response.json();
   if (!data.access_token) throw new Error("Google access token missing");
   return data.access_token as string;
 }
 
-async function uploadGoogle(fileName: string, mimeType: string, bytes: Uint8Array, folderId?: string) {
+async function googleJson(path: string, init: RequestInit = {}) {
+  const token = await googleAccessToken();
+  const response = await fetch(`https://www.googleapis.com${path}`, {
+    ...init,
+    headers: { Authorization: `Bearer ${token}`, ...(init.headers || {}) },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(`Google Drive request failed (${response.status})`);
+  return data;
+}
+
+async function googleFolderHealth() {
+  const folderId = requiredEnv("GOOGLE_DRIVE_FOLDER_ID");
+  const folder = await googleJson(`/drive/v3/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType,trashed,webViewLink&supportsAllDrives=true`);
+  if (folder.trashed || folder.mimeType !== "application/vnd.google-apps.folder") {
+    throw new Error("Configured Google Drive destination is not an active folder");
+  }
+  return folder;
+}
+
+async function ensureGoogleFolder(parentId: string, name: string) {
+  const escaped = name.replace(/'/g, "\\'");
+  const query = `'${parentId}' in parents and name='${escaped}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  const found = await googleJson(`/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,webViewLink)&pageSize=1&supportsAllDrives=true&includeItemsFromAllDrives=true`);
+  if (found.files?.[0]?.id) return found.files[0];
+  return await googleJson("/drive/v3/files?fields=id,name,webViewLink&supportsAllDrives=true", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, mimeType: "application/vnd.google-apps.folder", parents: [parentId] }),
+  });
+}
+
+async function uploadGoogle(schoolId: string, studentId: string, fileName: string, mimeType: string, bytes: Uint8Array) {
+  const rootId = requiredEnv("GOOGLE_DRIVE_FOLDER_ID");
+  const schoolFolder = await ensureGoogleFolder(rootId, `school-${schoolId}`);
+  const studentFolder = await ensureGoogleFolder(schoolFolder.id, `student-${studentId}`);
   const access = await googleAccessToken();
-  const boundary = "eal_" + crypto.randomUUID().replaceAll("-", "");
-  const meta: Record<string, unknown> = { name: fileName };
-  const folder = folderId || Deno.env.get("GOOGLE_DRIVE_FOLDER_ID");
-  if (folder) meta.parents = [folder];
+  const boundary = `eal_${crypto.randomUUID().replaceAll("-", "")}`;
+  const metadata = { name: fileName, parents: [studentFolder.id] };
   const head = new TextEncoder().encode(
-    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: ${mimeType || "application/octet-stream"}\r\n\r\n`
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`,
   );
   const tail = new TextEncoder().encode(`\r\n--${boundary}--`);
-  const body = concatBytes([head, bytes, tail]);
-  const r = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink", {
+  const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,webViewLink&supportsAllDrives=true", {
     method: "POST",
-    headers: { Authorization: "Bearer " + access, "Content-Type": "multipart/related; boundary=" + boundary },
-    body,
+    headers: { Authorization: `Bearer ${access}`, "Content-Type": `multipart/related; boundary=${boundary}` },
+    body: concatBytes([head, bytes, tail]),
   });
-  if (!r.ok) throw new Error("Google Drive upload failed: " + r.status);
-  const data = await r.json();
-  return { id: data.id as string, name: data.name as string, url: data.webViewLink as string | undefined };
+  if (!response.ok) throw new Error(`Google Drive upload failed (${response.status})`);
+  const data = await response.json();
+  return { id: data.id as string, name: data.name as string, mimeType: data.mimeType as string, url: data.webViewLink as string | undefined };
+}
+
+function googleFileId(value: string) {
+  const trimmed = value.trim();
+  if (/^[A-Za-z0-9_-]{10,}$/.test(trimmed)) return trimmed;
+  try {
+    const url = new URL(trimmed);
+    return url.pathname.match(/\/d\/([A-Za-z0-9_-]+)/)?.[1] || url.searchParams.get("id") || "";
+  } catch {
+    return "";
+  }
+}
+
+async function linkGoogleFile(value: string) {
+  const id = googleFileId(value);
+  if (!id) throw new Error("Enter a valid Google Drive file link or ID");
+  const file = await googleJson(`/drive/v3/files/${encodeURIComponent(id)}?fields=id,name,mimeType,webViewLink,trashed&supportsAllDrives=true`);
+  if (file.trashed) throw new Error("That Google Drive file is in the bin");
+  return { id: file.id as string, name: file.name as string, mimeType: file.mimeType as string, url: file.webViewLink as string | undefined };
 }
 
 async function graphAccessToken() {
-  const tenant = Deno.env.get("MS_TENANT_ID") || "";
+  const tenant = requiredEnv("MS_TENANT_ID");
   const body = new URLSearchParams({
-    client_id: Deno.env.get("MS_CLIENT_ID") || "",
-    client_secret: Deno.env.get("MS_CLIENT_SECRET") || "",
+    client_id: requiredEnv("MS_CLIENT_ID"),
+    client_secret: requiredEnv("MS_CLIENT_SECRET"),
     scope: "https://graph.microsoft.com/.default",
     grant_type: "client_credentials",
   });
-  const r = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
-    method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body,
+  const response = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
   });
-  if (!r.ok) throw new Error("Microsoft token request failed");
-  const data = await r.json();
+  if (!response.ok) throw new Error(`Microsoft token request failed (${response.status})`);
+  const data = await response.json();
   if (!data.access_token) throw new Error("Microsoft access token missing");
   return data.access_token as string;
 }
 
-async function uploadOneDrive(fileName: string, bytes: Uint8Array, basePath?: string) {
+async function uploadOneDrive(fileName: string, bytes: Uint8Array) {
   const access = await graphAccessToken();
-  const driveId = Deno.env.get("ONEDRIVE_DRIVE_ID") || "";
-  if (!driveId) throw new Error("ONEDRIVE_DRIVE_ID is not configured");
-  const root = (basePath || Deno.env.get("ONEDRIVE_BASE_PATH") || "EAL").replace(/^\/+|\/+$/g, "");
-  const safePath = root.split("/").map(encodeURIComponent).join("/") + "/" + encodeURIComponent(fileName);
-  const r = await fetch(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/root:/${safePath}:/content`, {
-    method: "PUT", headers: { Authorization: "Bearer " + access, "Content-Type": "application/octet-stream" }, body: bytes,
+  const driveId = requiredEnv("ONEDRIVE_DRIVE_ID");
+  const root = (Deno.env.get("ONEDRIVE_BASE_PATH") || "EAL").replace(/^\/+|\/+$/g, "");
+  const safePath = `${root.split("/").map(encodeURIComponent).join("/")}/${encodeURIComponent(fileName)}`;
+  const response = await fetch(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/root:/${safePath}:/content`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${access}`, "Content-Type": "application/octet-stream" },
+    body: bytes,
   });
-  if (!r.ok) throw new Error("OneDrive upload failed: " + r.status);
-  const data = await r.json();
-  return { id: data.id as string, name: data.name as string, url: data.webUrl as string | undefined };
+  if (!response.ok) throw new Error(`OneDrive upload failed (${response.status})`);
+  const data = await response.json();
+  return { id: data.id as string, name: data.name as string, mimeType: data.file?.mimeType || "", url: data.webUrl as string | undefined };
+}
+
+async function storeEvidence(admin: any, values: Record<string, unknown>) {
+  const { data, error } = await admin.from("evidence_files").insert(values).select().single();
+  if (error) throw error;
+  return data;
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
-  if (req.method !== "POST") return json({ error: "POST required" }, 405);
+  if (req.method === "OPTIONS") return handleOptions(req);
+  if (req.method !== "POST") return json(req, { error: "POST required" }, 405);
+
   try {
     const { user, admin } = await authContext(req);
     const body = await req.json();
     const schoolId = String(body.schoolId || "");
     if (!schoolId) throw new Error("schoolId required");
-    await assertMembership(admin, user.id, schoolId);
-    const provider = String(body.provider || "");
+    const role = await membership(admin, user.id, schoolId);
+    const action = String(body.action || "health");
+    const provider = String(body.provider || "Google Drive");
 
-    if (body.action === "health") {
-      const configured = provider === "Google Drive"
-        ? Boolean(Deno.env.get("GOOGLE_CLIENT_ID") && Deno.env.get("GOOGLE_CLIENT_SECRET") && Deno.env.get("GOOGLE_REFRESH_TOKEN"))
-        : provider === "OneDrive"
-          ? Boolean(Deno.env.get("MS_TENANT_ID") && Deno.env.get("MS_CLIENT_ID") && Deno.env.get("MS_CLIENT_SECRET") && Deno.env.get("ONEDRIVE_DRIVE_ID"))
-          : false;
-      return json({ ok: true, provider, configured });
+    if (action === "health") {
+      if (provider === "Google Drive") {
+        const folder = await googleFolderHealth();
+        return json(req, { ok: true, configured: true, provider, destination: { id: folder.id, name: folder.name, url: folder.webViewLink } });
+      }
+      if (provider === "OneDrive") {
+        await graphAccessToken();
+        return json(req, { ok: true, configured: true, provider });
+      }
+      return json(req, { error: "Choose a storage provider" }, 400);
     }
 
-    if (body.action !== "upload") return json({ error: "Unknown action" }, 400);
-    const fileName = String(body.fileName || "");
+    if (action === "list") {
+      const studentId = String(body.studentId || "");
+      if (!studentId) throw new Error("studentId required");
+      const { data, error } = await admin
+        .from("evidence_files")
+        .select("id,provider,provider_file_id,file_name,mime_type,storage_path,created_at,uploaded_by")
+        .eq("school_id", schoolId)
+        .eq("student_id", studentId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return json(req, { ok: true, files: data || [] });
+    }
+
+    requireRole(role, [...editableRoles], "Your role cannot add evidence files");
     const studentId = String(body.studentId || "");
-    const mimeType = String(body.mimeType || "application/octet-stream");
-    if (!fileName || !studentId || !body.contentBase64) throw new Error("studentId, fileName and contentBase64 are required");
+    if (!studentId) throw new Error("studentId required");
+
+    if (action === "link") {
+      if (provider !== "Google Drive") return json(req, { error: "Linking currently supports Google Drive" }, 400);
+      const linked = await linkGoogleFile(String(body.fileUrl || body.fileId || ""));
+      const row = await storeEvidence(admin, {
+        school_id: schoolId,
+        student_id: studentId,
+        provider,
+        provider_file_id: linked.id,
+        file_name: linked.name,
+        mime_type: linked.mimeType || null,
+        storage_path: linked.url || null,
+        uploaded_by: user.id,
+      });
+      return json(req, { ok: true, file: row, providerFile: linked });
+    }
+
+    if (action !== "upload") return json(req, { error: "Unknown action" }, 400);
+    const fileName = safeFileName(String(body.fileName || ""));
+    const mimeType = String(body.mimeType || "application/octet-stream").toLowerCase();
+    if (!fileName || !body.contentBase64) throw new Error("fileName and contentBase64 are required");
+    if (!allowedMimeTypes.has(mimeType)) return json(req, { error: "That file type is not allowed" }, 415);
     const bytes = b64ToBytes(String(body.contentBase64));
-    const maxBytes = 8 * 1024 * 1024;
-    if (bytes.length > maxBytes) return json({ error: "This prototype upload endpoint is limited to 8 MB per file." }, 413);
+    if (bytes.length > maxBytes) return json(req, { error: "File must be 8 MB or smaller" }, 413);
 
-    let uploaded;
-    if (provider === "Google Drive") uploaded = await uploadGoogle(fileName, mimeType, bytes, body.driveFolderId);
-    else if (provider === "OneDrive") uploaded = await uploadOneDrive(fileName, bytes, body.oneDrivePath);
-    else return json({ error: "Storage provider not configured" }, 400);
+    const uploaded = provider === "Google Drive"
+      ? await uploadGoogle(schoolId, studentId, fileName, mimeType, bytes)
+      : provider === "OneDrive"
+        ? await uploadOneDrive(fileName, bytes)
+        : null;
+    if (!uploaded) return json(req, { error: "Storage provider not configured" }, 400);
 
-    const { data: row, error: dbError } = await admin.from("evidence_files").insert({
+    const row = await storeEvidence(admin, {
       school_id: schoolId,
       student_id: studentId,
       provider,
@@ -153,10 +253,9 @@ Deno.serve(async (req) => {
       mime_type: mimeType,
       storage_path: uploaded.url || null,
       uploaded_by: user.id,
-    }).select().single();
-    if (dbError) throw dbError;
-    return json({ ok: true, file: row, providerFile: uploaded });
-  } catch (e) {
-    return json({ error: String(e instanceof Error ? e.message : e) }, 400);
+    });
+    return json(req, { ok: true, file: row, providerFile: uploaded });
+  } catch (error) {
+    return json(req, { error: String(error instanceof Error ? error.message : error) }, 400);
   }
 });

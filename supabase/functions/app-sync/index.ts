@@ -1,49 +1,5 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const cors = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...cors, "Content-Type": "application/json" },
-  });
-}
-
-async function authContext(req: Request) {
-  const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
-  if (!token) throw new Error("Missing auth token");
-
-  const url = Deno.env.get("SUPABASE_URL")!;
-  const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-  const authClient = createClient(url, anon, {
-    global: { headers: { Authorization: "Bearer " + token } },
-  });
-  const { data, error } = await authClient.auth.getUser(token);
-  if (error || !data.user) throw new Error("Invalid user");
-
-  return {
-    user: data.user,
-    admin: createClient(url, service),
-  };
-}
-
-async function membership(admin: any, userId: string, schoolId: string) {
-  const { data, error } = await admin
-    .from("school_memberships")
-    .select("role")
-    .eq("school_id", schoolId)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error || !data) throw new Error("No school membership");
-  return data.role as string;
-}
+import { authContext, membership } from "../_shared/auth.ts";
+import { handleOptions, json } from "../_shared/http.ts";
 
 function safeDate(value: unknown) {
   const s = String(value || "");
@@ -82,8 +38,8 @@ async function mirrorStudents(admin: any, schoolId: string, userId: string, stat
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
-  if (req.method !== "POST") return json({ error: "POST required" }, 405);
+  if (req.method === "OPTIONS") return handleOptions(req);
+  if (req.method !== "POST") return json(req, { error: "POST required" }, 405);
 
   try {
     const { user, admin } = await authContext(req);
@@ -103,34 +59,54 @@ Deno.serve(async (req) => {
 
       if (error) throw error;
       if (!data) {
-        return json({
+        const { data: core, error: coreError } = await admin
+          .from("students_core")
+          .select("external_id,name,preferred_name,dob,year_group,form_group,admission_date,first_language,attendance_percent")
+          .eq("school_id", schoolId)
+          .eq("archived", false)
+          .order("name");
+        if (coreError) throw coreError;
+
+        return json(req, {
           ok: true,
           state: null,
           revision: 0,
           updatedAt: null,
           updatedBy: null,
+          role,
+          studentsCore: core || [],
         });
       }
 
-      return json({
+      const { data: core, error: coreError } = await admin
+        .from("students_core")
+        .select("external_id,name,preferred_name,dob,year_group,form_group,admission_date,first_language,attendance_percent")
+        .eq("school_id", schoolId)
+        .eq("archived", false)
+        .order("name");
+      if (coreError) throw coreError;
+
+      return json(req, {
         ok: true,
         state: data.state_data,
         revision: Number(data.revision || 0),
         updatedAt: data.updated_at,
         updatedBy: data.updated_by,
+        role,
+        studentsCore: core || [],
       });
     }
 
-    if (action !== "save") return json({ error: "Unknown action" }, 400);
+    if (action !== "save") return json(req, { error: "Unknown action" }, 400);
 
     if (!["administrator", "eal_coordinator", "teacher"].includes(role)) {
-      return json({ error: "Your role is read-only." }, 403);
+      return json(req, { error: "Your role is read-only." }, 403);
     }
 
     const expectedRevision = Number(body.expectedRevision || 0);
     const stateData = body.state;
     if (!stateData || typeof stateData !== "object") {
-      return json({ error: "state object required" }, 400);
+      return json(req, { error: "state object required" }, 400);
     }
 
     const { data: saved, error: saveError } = await admin.rpc("save_app_snapshot", {
@@ -149,6 +125,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       return json(
+        req,
         {
           error: "conflict",
           message: "Central data changed since this browser last loaded it.",
@@ -174,12 +151,13 @@ Deno.serve(async (req) => {
       },
     });
 
-    return json({
+    return json(req, {
       ok: true,
       revision,
       updatedAt: saved[0].updated_at,
+      role,
     });
   } catch (e) {
-    return json({ error: String(e instanceof Error ? e.message : e) }, 400);
+    return json(req, { error: String(e instanceof Error ? e.message : e) }, 400);
   }
 });

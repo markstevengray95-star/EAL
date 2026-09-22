@@ -4,7 +4,9 @@
   "private": true,
   "description": "Whole-school EAL student progress and reading-age tracker",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "build:config": "node scripts/build-config.mjs",
+    "check": "node scripts/check.mjs"
   },
   "engines": {
     "node": ">=20"

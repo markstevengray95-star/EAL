@@ -4,7 +4,7 @@ The live GitHub Pages site can operate in local demo mode or connect to a Supaba
 
 ## 1. Create the central database
 1. Create a school-owned Supabase project in the appropriate approved region.
-2. Run `supabase/schema.sql` in the SQL editor.
+2. Run `supabase/schema.sql`, `supabase/migrations/003_central_sync.sql`, then `supabase/migrations/004_security_and_integrations.sql` in the SQL editor.
 3. Sign in once through the EAL app, then add the first administrator to `school_memberships`.
 4. Add other authorised staff with the minimum role they need.
 
@@ -82,6 +82,7 @@ supabase functions deploy app-sync
 supabase functions deploy staff-admin
 supabase functions deploy evidence-storage
 supabase functions deploy mis-sync
+supabase functions deploy bootstrap-school
 ```
 
 Set provider credentials with Supabase secrets rather than putting them in the website.
@@ -99,11 +100,17 @@ For OneDrive:
 - `ONEDRIVE_DRIVE_ID`
 - optional `ONEDRIVE_BASE_PATH`
 
-For MIS:
+For direct iSAMS:
+- `ISAMS_STUDENTS_URL`
+- `ISAMS_API_KEY`
+- `ISAMS_AUTH_MODE`
+- optional `ISAMS_RECORD_PATH`
+
+For the provider-neutral MIS adapter:
 - `MIS_SYNC_URL`
 - `MIS_API_TOKEN`
 
-See `MIS_ADAPTER_CONTRACT.md` for the provider-neutral MIS payload.
+See `SCHOOL_INTEGRATION_SETUP.md` for the complete Google/iSAMS setup and `MIS_ADAPTER_CONTRACT.md` for the provider-neutral MIS payload.
 
 ## 10. What is live now vs what still needs school credentials
 Already implemented in the repository:

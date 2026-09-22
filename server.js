@@ -28,6 +28,12 @@ http.createServer((req, res) => {
     if (!err && stat.isDirectory()) filePath = path.join(filePath, "index.html");
     fs.readFile(filePath, (readErr, data) => {
       if (readErr) {
+        // Return a real 404 for missing assets. Serving index.html as
+        // JavaScript or CSS creates confusing browser parse errors.
+        if (path.extname(filePath)) {
+          res.writeHead(404, {"Content-Type":"text/plain; charset=utf-8","Cache-Control":"no-cache"});
+          return res.end("Not found");
+        }
         fs.readFile(path.join(root, "index.html"), (fallbackErr, fallback) => {
           if (fallbackErr) {
             res.writeHead(404);
