@@ -1503,6 +1503,7 @@ function renderAdminHub(){
  var h=pageHead("More & Settings","Less-used administration and optional advanced integrations","");
  h+='<div class="grid three">'+
  hubCard("Staff tasks","Assign and complete follow-up actions.","tasks")+
+ hubCard("Reminder centre","Weekly staff action digest and outstanding work.","reminders")+
  hubCard("Tools & rollover","Bulk actions, CSV import, leavers and year rollover.","tools")+
  hubCard("Data & bulk tools","Bulk assessment, duplicate checking, import history and reassessment planning.","datatools")+
  hubCard("Archive","Find and restore archived pupil records.","archive")+
@@ -2703,6 +2704,41 @@ function renderCohortTrends(){
  return h+'</tbody></table></div></div>'
 }
 
+
+function reminderItems(){
+ var out=[];
+ getPriorities().forEach(function(p){var s=studentById(p.student);out.push({staff:(s&&s.keyStaff)||"EAL Team",title:p.text,student:s?s.name:"",due:"Now",priority:p.sev==="danger"?"High":"Medium"})});
+ (state.tasks||[]).filter(function(t){return t.status!=="Completed"}).forEach(function(t){var s=studentById(t.studentId);out.push({staff:t.assignedTo||"EAL Team",title:t.title,student:s?s.name:"",due:dateText(t.dueDate),priority:t.priority||"Normal"})});
+ (state.testSessions||[]).filter(function(t){return t.status==="Submitted"}).forEach(function(t){var s=studentById(t.studentId);out.push({staff:"EAL Team",title:"Finish speaking/writing test marking",student:s?s.name:"",due:"Now",priority:"Medium"})});
+ (state.feedbackRequests||[]).filter(function(x){return x.status!=="Completed"}).forEach(function(x){var s=studentById(x.studentId);out.push({staff:"EAL Team",title:"Subject feedback outstanding: "+(x.subject||""),student:s?s.name:"",due:dateText(x.requestedDate),priority:"Normal"})});
+ return out
+}
+function reminderDigestText(){
+ var items=reminderItems(),groups={};items.forEach(function(x){groups[x.staff]=groups[x.staff]||[];groups[x.staff].push(x)});
+ var lines=["EAL weekly action digest — "+dateText(today()),""];
+ Object.keys(groups).sort().forEach(function(staff){lines.push(staff);groups[staff].forEach(function(x){lines.push("- "+x.title+(x.student?" — "+x.student:"")+" ("+x.due+")")});lines.push("")});
+ if(!items.length)lines.push("No current actions due.");
+ return lines.join("\n")
+}
+window.copyReminderDigest=function(){
+ var t=reminderDigestText();
+ if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(function(){toast("Weekly digest copied")}).catch(function(){prompt("Copy digest",t)});
+ else prompt("Copy digest",t)
+}
+function renderReminderCentre(){
+ var items=reminderItems(),groups={};items.forEach(function(x){groups[x.staff]=groups[x.staff]||[];groups[x.staff].push(x)});
+ var h=pageHead("Reminder Centre","Email-style weekly action list grouped by staff",'<button class="btn primary" onclick="copyReminderDigest()">Copy weekly digest</button>');
+ h+='<div class="grid three"><div class="card kpi"><small>Actions</small><strong>'+items.length+'</strong><span>Current open reminders</span></div><div class="card kpi"><small>High priority</small><strong>'+items.filter(function(x){return x.priority==="High"}).length+'</strong><span>Needs prompt attention</span></div><div class="card kpi"><small>Staff groups</small><strong>'+Object.keys(groups).length+'</strong><span>With assigned actions</span></div></div>';
+ if(!items.length)return h+'<div class="empty">No current reminders.</div>';
+ h+='<div class="grid two" style="margin-top:14px">';
+ Object.keys(groups).sort().forEach(function(staff){
+  h+='<div class="card"><h3>'+esc(staff)+'</h3>';
+  groups[staff].forEach(function(x){h+='<div class="priority"><div><b>'+esc(x.title)+'</b><span>'+esc(x.student||"Whole-school")+' · '+esc(x.due)+'</span></div>'+badge(x.priority,x.priority==="High"?"danger":x.priority==="Medium"?"warn":"")+'</div>'});
+  h+='</div>'
+ });
+ return h+'</div>'
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
@@ -2733,6 +2769,7 @@ function render(){
  else if(ui.view==="teacher")html=renderTeacherView();
  else if(ui.view==="calendar")html=renderCalendar();
  else if(ui.view==="tasks")html=renderTasks();
+ else if(ui.view==="reminders")html=renderReminderCentre();
  else if(ui.view==="impact")html=renderImpactPro();
  else if(ui.view==="sessions")html=renderSessions();
  else if(ui.view==="supportplan")html=renderSupportPlan();
