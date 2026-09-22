@@ -2,5 +2,10 @@ config.js
 .env
 .env.*
 !.env.example
+supabase/.temp/
+supabase/.branches/
+supabase/functions/.env
+supabase/functions/.env.*
+!supabase/functions/.env.example
+supabase/signing_keys.json
 .DS_Store
-

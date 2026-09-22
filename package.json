@@ -6,7 +6,15 @@
   "scripts": {
     "start": "node server.js",
     "build:config": "node scripts/build-config.mjs",
-    "check": "node scripts/check.mjs"
+    "check": "node scripts/check.mjs && node scripts/validate-supabase.mjs",
+    "supabase:check": "node scripts/validate-supabase.mjs",
+    "supabase:start": "npx --yes supabase@2.117.0 start",
+    "supabase:stop": "npx --yes supabase@2.117.0 stop",
+    "supabase:reset": "npx --yes supabase@2.117.0 db reset --local",
+    "supabase:functions": "npx --yes supabase@2.117.0 functions serve --env-file supabase/functions/.env",
+    "supabase:link": "npx --yes supabase@2.117.0 link",
+    "supabase:push": "npx --yes supabase@2.117.0 db push",
+    "supabase:deploy:functions": "npx --yes supabase@2.117.0 functions deploy"
   },
   "engines": {
     "node": ">=20"

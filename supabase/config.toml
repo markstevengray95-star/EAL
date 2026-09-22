@@ -1,0 +1,106 @@
+# EAL Progress Hub local Supabase configuration.
+# Safe to commit: every private value is read from an ignored .env file.
+# Reference: https://supabase.com/docs/guides/local-development/cli/config
+
+project_id = "eal-progress-hub"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+health_timeout = "2m"
+
+[db.migrations]
+enabled = true
+schema_paths = []
+
+[db.seed]
+# Real pupil records must never be committed as seed data.
+enabled = false
+sql_paths = []
+
+[realtime]
+enabled = false
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1"
+
+[local_smtp]
+enabled = true
+port = 54324
+
+[storage]
+# Evidence is stored in the school Google Drive integration, not a public bucket.
+enabled = false
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = [
+  "http://127.0.0.1:3000",
+  "http://localhost:3000",
+  "https://markstevengray95-star.github.io/EAL/"
+]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+enable_signup = true
+enable_anonymous_sign_ins = false
+enable_manual_linking = false
+minimum_password_length = 12
+password_requirements = "lower_upper_letters_digits"
+
+[auth.email]
+# Staff access uses the approved school Google Workspace account.
+enable_signup = false
+double_confirm_changes = true
+enable_confirmations = true
+secure_password_change = true
+max_frequency = "1m"
+otp_length = 6
+otp_expiry = 900
+
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET)"
+skip_nonce_check = false
+email_optional = false
+
+[edge_runtime]
+enabled = true
+policy = "per_worker"
+inspector_port = 8083
+deno_version = 2
+
+# Each function performs its own token, school-domain and role checks. The MIS
+# function also permits a separately protected scheduled-sync request.
+[functions.bootstrap-school]
+verify_jwt = false
+
+[functions.app-sync]
+verify_jwt = false
+
+[functions.staff-admin]
+verify_jwt = false
+
+[functions.evidence-storage]
+verify_jwt = false
+
+[functions.mis-sync]
+verify_jwt = false
+
+[analytics]
+enabled = false
+
+[experimental.pgdelta]
+enabled = true

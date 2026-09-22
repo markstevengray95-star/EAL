@@ -4,7 +4,7 @@ The live GitHub Pages site can operate in local demo mode or connect to a Supaba
 
 ## 1. Create the central database
 1. Create a school-owned Supabase project in the appropriate approved region.
-2. Run `supabase/schema.sql`, `supabase/migrations/003_central_sync.sql`, then `supabase/migrations/004_security_and_integrations.sql` in the SQL editor.
+2. Link the repository to that project and apply the timestamped files in `supabase/migrations`, or use the manual **Deploy Supabase backend** GitHub workflow.
 3. Sign in once through the EAL app, then add the first administrator to `school_memberships`.
 4. Add other authorised staff with the minimum role they need.
 
@@ -48,9 +48,9 @@ Expected pupil fields returned to the web app:
 
 
 ## 7. Conflict-safe central sync
-The repository now includes `supabase/functions/app-sync` plus `supabase/migrations/003_central_sync.sql`.
+The repository includes `supabase/functions/app-sync` and a timestamped central-sync database migration.
 
-Apply the migration after `supabase/schema.sql`, then deploy the Edge Function:
+Apply all migrations in filename order, then deploy the Edge Function:
 
 ```bash
 supabase functions deploy app-sync
@@ -84,6 +84,8 @@ supabase functions deploy evidence-storage
 supabase functions deploy mis-sync
 supabase functions deploy bootstrap-school
 ```
+
+The repository's `supabase/config.toml` sets `verify_jwt = false` for these functions because they validate the access token, school email domain and membership role inside the shared server authentication code. The `mis-sync` function also validates its separate scheduled-sync secret.
 
 Set provider credentials with Supabase secrets rather than putting them in the website.
 

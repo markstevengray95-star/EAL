@@ -21,6 +21,8 @@ Open `index.html` in a browser or deploy this repository as a static site. No bu
 ## Data and school integrations
 The app starts in fictional demo mode when no school backend is configured. The repository now includes a production Supabase architecture with Google Workspace staff login, server-enforced roles, shared central data, direct configurable iSAMS sync, and protected Google Drive evidence storage/linking.
 
+The complete Supabase CLI configuration is in `supabase/config.toml`. Database changes are versioned in `supabase/migrations`, every Edge Function has an explicit authentication setting, and the manual **Deploy Supabase backend** workflow can deploy the database and functions after the school-owned project settings are added.
+
 Real pupil data must only be used after the school-owned services and data-protection controls are configured. Follow `SCHOOL_INTEGRATION_SETUP.md`.
 
 All demo pupils are fictional.

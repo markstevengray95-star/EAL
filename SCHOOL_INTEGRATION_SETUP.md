@@ -7,15 +7,20 @@ Never paste service-role keys, Google client secrets, refresh tokens or iSAMS AP
 ## 1. Create the Supabase backend
 
 1. Create a school-owned Supabase project in the school's approved region.
-2. Run these files in the SQL editor, in order:
-   - `supabase/schema.sql`
-   - `supabase/migrations/003_central_sync.sql`
-   - `supabase/migrations/004_security_and_integrations.sql`
-3. In **Authentication > URL Configuration**, add:
+2. Copy the project reference from the dashboard URL: `https://supabase.com/dashboard/project/<project-reference>`.
+3. Add these GitHub repository settings for the manual backend deployment:
+   - Variable `SUPABASE_PROJECT_ID` — the project reference.
+   - Secret `SUPABASE_ACCESS_TOKEN` — created in the school administrator's Supabase account settings.
+   - Secret `SUPABASE_DB_PASSWORD` — the project database password.
+4. Open **Actions > Deploy Supabase backend > Run workflow**. Keep both deployment choices selected. This applies the timestamped files in `supabase/migrations` and deploys every Edge Function.
+5. Alternatively, use the Supabase CLI locally: copy `.env.example` to `.env`, copy `supabase/functions/.env.example` to `supabase/functions/.env`, then use the `supabase:*` commands in `package.json`.
+6. In **Authentication > URL Configuration**, add:
    - `https://markstevengray95-star.github.io/EAL/`
-   - the local development URL when testing
-4. In **Authentication > Providers > Google**, enable Google and enter the school-owned OAuth client details.
-5. In Google Cloud, add the Supabase callback shown by the provider screen as an authorised redirect URI.
+   - `http://localhost:3000` and `http://127.0.0.1:3000` when testing locally
+7. In **Authentication > Providers > Google**, enable Google and enter the school-owned OAuth client details.
+8. In Google Cloud, add the Supabase callback shown by the provider screen as an authorised redirect URI.
+
+`supabase/config.toml` contains the safe local ports, Google provider placeholders, exact redirect URLs and per-function authentication settings. It contains no private credentials.
 
 ## 2. Configure first login
 
@@ -32,14 +37,10 @@ The first successful sign-in by `BOOTSTRAP_ADMIN_EMAIL` creates the school recor
 
 ## 3. Deploy the server functions
 
-Deploy all five functions:
+The manual GitHub workflow deploys all five functions together. For a local CLI deployment, use:
 
 ```bash
-supabase functions deploy bootstrap-school
-supabase functions deploy app-sync
-supabase functions deploy staff-admin
-supabase functions deploy evidence-storage
-supabase functions deploy mis-sync
+npm run supabase:deploy:functions -- --project-ref YOUR_PROJECT_REFERENCE
 ```
 
 Supabase supplies `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`. The real service-role key must remain server-side.
@@ -112,6 +113,8 @@ SUPABASE_ANON_KEY=YOUR_PUBLIC_ANON_KEY
 
 The deployment workflow generates `config.js` during deployment. The file contains only public browser configuration. If the variables are absent, the site remains in fictional demo mode rather than locking users out.
 
+After adding these settings, rerun **Deploy EAL Progress Hub** so the live website receives the public project URL and browser key.
+
 ## 8. Final checks before real data
 
 - Complete the school's DPIA/data-protection review.
@@ -121,4 +124,3 @@ The deployment workflow generates `config.js` during deployment. The file contai
 - Verify Drive uploads remain private and open only for authorised school staff.
 - Confirm retention, deletion, backup and incident procedures.
 - Only then move from fictional data to real pupil records.
-
