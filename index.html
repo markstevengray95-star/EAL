@@ -388,8 +388,8 @@ function renderStudent(){
  h+='<div class="tabs">'+tabs.map(function(t){return '<button class="tab '+(ui.studentTab===t[0]?"active":"")+'" onclick="ui.studentTab=\''+t[0]+'\';render()">'+t[1]+'</button>'}).join("")+'</div>';
  if(ui.studentTab==="overview")h+=studentOverview(s);
  if(ui.studentTab==="assessment")h+=studentEalEnhanced(s)+studentReading(s)+studentTestHistoryCard(s);
- if(ui.studentTab==="support")h+=studentLearning(s)+studentTargetsEnhanced(s)+studentInterventionsEnhanced(s);
- if(ui.studentTab==="evidence")h+=studentObservations(s)+studentSubjects(s)+studentVoiceEnhanced(s)+studentFamily(s)+studentEvidenceEnhanced(s);
+ if(ui.studentTab==="support")h+=studentLearning(s)+studentTargetsEnhanced(s)+studentInterventionsEnhanced(s)+studentSupportExtensions(s);
+ if(ui.studentTab==="evidence")h+=studentObservations(s)+studentSubjects(s)+studentVoiceEnhanced(s)+studentFamily(s)+studentContextExtensions(s)+studentEvidenceSamples(s)+studentEvidenceEnhanced(s);
  if(ui.studentTab==="review")h+=studentReviews(s)+studentPassport(s);
  return h
 }
@@ -564,6 +564,8 @@ function ensureEnhancedData(){
  state.assessmentCycles=state.assessmentCycles||[];
  state.interventionGroups=state.interventionGroups||[];
  state.studentPortalCodes=state.studentPortalCodes||[];
+ state.parentPacks=state.parentPacks||[];
+ state.teacherFeedbackLinks=state.teacherFeedbackLinks||[];
  state.termReportCycles=state.termReportCycles||[];
  state.syncQueue=state.syncQueue||[];
  state.testSessions=state.testSessions||[];
@@ -602,6 +604,14 @@ function ensureEnhancedData(){
   s.vocab=s.vocab||[];
   s.strategies=s.strategies||[];
   s.history=s.history||[];
+  s.homeLanguageLiteracy=s.homeLanguageLiteracy||{reading:"",writing:"",schoolingLanguage:"",notes:""};
+  s.previousSchoolingDetails=s.previousSchoolingDetails||{years:"",curriculum:"",interruptions:"",strengths:"",notes:""};
+  s.subjectLanguageProfiles=s.subjectLanguageProfiles||{};
+  s.examLanguage=s.examLanguage||{};
+  s.strategyRatings=s.strategyRatings||{};
+  s.workSamples=s.workSamples||[];
+  s.writingSamples=s.writingSamples||[];
+  s.speakingSamples=s.speakingSamples||[];
   (s.interventions||[]).forEach(function(i){if(i.impactRating===undefined)i.impactRating="Not reviewed";if(i.outcome===undefined)i.outcome=""});
  })
 }
@@ -2456,6 +2466,99 @@ function renderImpactPro(){
  h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Before / after evidence</h3><span class="small muted">Language profile and reading evidence around intervention start</span></div><div class="table-wrap"><table><thead><tr><th>Pupil</th><th>Intervention</th><th>4-skill profile change</th><th>Reading-age change</th><th>Delivered minutes</th></tr></thead><tbody>';
  currentStudents().forEach(function(s){(s.interventions||[]).forEach(function(i){var e=interventionEvidenceSummary(s,i),mins=(state.interventionSessions||[]).filter(function(x){return x.studentId===s.id&&x.attended&&(x.groupId===i.groupId||x.interventionName===i.name)}).reduce(function(n,x){return n+(Number(x.minutes)||0)},0);h+='<tr><td>'+esc(s.name)+'</td><td>'+esc(i.name)+'</td><td>'+(e.domainChange==null?"Insufficient assessments":badge((e.domainChange>=0?"+":"")+e.domainChange.toFixed(2)+" average domain points",e.domainChange>0?"ok":e.domainChange<0?"warn":""))+'</td><td>'+(e.readingChange==null?"Insufficient reading data":badge((e.readingChange>=0?"+":"")+e.readingChange+" months",e.readingChange>0?"ok":""))+'</td><td>'+mins+'</td></tr>'})});
  return h+'</tbody></table></div><div class="notice" style="margin-top:10px">Before/after change is descriptive evidence. It does not establish that the intervention caused the change.</div></div>'
+}
+
+
+var targetBank=[
+ {stage:"New to English",category:"Listening",text:"Follow a familiar one-step classroom instruction supported by a visual cue."},
+ {stage:"New to English",category:"Speaking",text:"Use a rehearsed phrase or short sentence to ask for help or give a classroom response."},
+ {stage:"New to English",category:"Reading",text:"Match key curriculum words to pictures, objects or familiar meanings."},
+ {stage:"New to English",category:"Writing",text:"Write a short accurate sentence using a model and key vocabulary."},
+ {stage:"Early Acquisition",category:"Listening",text:"Follow two-step classroom instructions with decreasing visual support."},
+ {stage:"Early Acquisition",category:"Speaking",text:"Give a complete spoken sentence using relevant lesson vocabulary."},
+ {stage:"Early Acquisition",category:"Reading",text:"Identify the main idea and one supporting detail in a short curriculum text."},
+ {stage:"Early Acquisition",category:"Writing",text:"Write a linked pair of sentences using an appropriate connective."},
+ {stage:"Developing Competence",category:"Vocabulary",text:"Use selected Tier 2 and Tier 3 vocabulary accurately in independent curriculum work."},
+ {stage:"Developing Competence",category:"Reading",text:"Infer the meaning of an unfamiliar word from sentence or paragraph context."},
+ {stage:"Developing Competence",category:"Writing",text:"Write a structured paragraph using evidence, explanation and appropriate academic language."},
+ {stage:"Developing Competence",category:"Speaking",text:"Give an extended spoken response including a reason and an example."},
+ {stage:"Competent",category:"Academic language",text:"Use common command words accurately to structure responses across subjects."},
+ {stage:"Competent",category:"Writing",text:"Use precise subject vocabulary and varied sentence structures in extended responses."},
+ {stage:"Competent",category:"Reading",text:"Distinguish explicit information from inference in age-appropriate curriculum texts."},
+ {stage:"Fluent",category:"Academic language",text:"Use nuanced academic vocabulary and register flexibly across different curriculum contexts."},
+ {stage:"Fluent",category:"Writing",text:"Evaluate and synthesise evidence using concise, subject-appropriate academic language."},
+ {stage:"All",category:"Classroom communication",text:"Ask for clarification independently when an instruction or question is unclear."},
+ {stage:"All",category:"Exam language",text:"Identify the command word in an assessment question and choose an appropriate response structure."}
+];
+function targetBankListHtml(list){
+ return list.map(function(t){return '<div class="priority"><div><b>'+esc(t.category)+' · '+esc(t.stage)+'</b><span>'+esc(t.text)+'</span></div><button class="btn" onclick="addTargetFromBank(\''+encodeURIComponent(t.category)+'\',\''+encodeURIComponent(t.text)+'\')">Use</button></div>'}).join("")
+}
+window.openTargetBank=function(studentId){
+ var s=studentId?studentById(studentId):null,stage=s?levelFromSkills(s.proficiency):"All";
+ var list=targetBank.filter(function(t){return t.stage==="All"||stage==="All"||t.stage===stage});
+ modal("EAL target bank",'<div class="filters"><select id="tbStudent">'+studentOptions(studentId)+'</select><select id="tbStage" onchange="filterTargetBank()"><option>All</option>'+levels.map(function(x){return '<option '+(stage===x?"selected":"")+'>'+esc(x)+'</option>'}).join("")+'</select></div><div id="targetBankList">'+targetBankListHtml(list)+'</div>',"Close",function(){closeModal()})
+}
+window.filterTargetBank=function(){var stage=val("tbStage");document.getElementById("targetBankList").innerHTML=targetBankListHtml(targetBank.filter(function(t){return stage==="All"||t.stage==="All"||t.stage===stage}))}
+window.addTargetFromBank=function(cat,text){
+ var s=studentById(val("tbStudent"));if(!s)return;cat=decodeURIComponent(cat);text=decodeURIComponent(text);s.targets=s.targets||[];s.targets.push({id:uid("tar"),category:cat,text:text,dateSet:today(),reviewDate:addMonths(today(),2),status:"Developing",evidence:"Classwork, observation and pupil response",reviewNotes:""});save("Added target from target bank for "+s.name);toast("Target added")
+}
+function strategyRatingLabel(v){return v===2?"Very helpful":v===1?"Helpful":v===-1?"Not helpful":v===-2?"Consistently unhelpful":"Not yet rated"}
+window.rateStrategy=function(studentId,encoded,rating){
+ var s=studentById(studentId);if(!s)return;var strategy=decodeURIComponent(encoded);s.strategyRatings=s.strategyRatings||{};s.strategyRatings[strategy]=Number(rating);save("Rated classroom strategy for "+s.name);render()
+}
+function studentSupportExtensions(s){
+ var h='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Strategy effectiveness</h3><button class="btn" onclick="openTargetBank(\''+s.id+'\')">Target bank</button></div>';
+ if(!(s.strategies||[]).length)h+='<div class="empty">No classroom strategies assigned.</div>';
+ else h+=(s.strategies||[]).map(function(x){var r=Number((s.strategyRatings||{})[x]||0);return '<div class="priority"><div><b>'+esc(x)+'</b><span>'+esc(strategyRatingLabel(r))+'</span></div><div class="actions"><button class="btn" onclick="rateStrategy(\''+s.id+'\',\''+encodeURIComponent(x)+'\',1)">Helpful</button><button class="btn" onclick="rateStrategy(\''+s.id+'\',\''+encodeURIComponent(x)+'\',-1)">Not helpful</button></div></div>'}).join("");
+ return h+'</div>'
+}
+window.openHomeLanguageProfile=function(id){
+ var s=studentById(id);if(!s)return;var h=s.homeLanguageLiteracy||{},p=s.previousSchoolingDetails||{};
+ modal("Home-language & previous schooling profile",'<div class="form-grid"><div class="field"><label>Home-language reading</label><select id="hlRead">'+["","Not known","Emerging","Developing","Secure / age-appropriate"].map(function(x){return '<option '+(h.reading===x?"selected":"")+'>'+esc(x||"Select…")+'</option>'}).join("")+'</select></div><div class="field"><label>Home-language writing</label><select id="hlWrite">'+["","Not known","Emerging","Developing","Secure / age-appropriate"].map(function(x){return '<option '+(h.writing===x?"selected":"")+'>'+esc(x||"Select…")+'</option>'}).join("")+'</select></div><div class="field"><label>Language of previous schooling</label><input id="hlSchoolLang" value="'+esc(h.schoolingLanguage||"")+'"></div><div class="field"><label>Approx. years of previous schooling</label><input id="psYears" value="'+esc(p.years||"")+'"></div><div class="field full"><label>Previous curriculum / subjects studied</label><textarea id="psCurriculum">'+esc(p.curriculum||"")+'</textarea></div><div class="field full"><label>Interruptions / gaps in schooling</label><textarea id="psInterrupt">'+esc(p.interruptions||"")+'</textarea></div><div class="field full"><label>Previously identified strengths</label><textarea id="psStrengths">'+esc(p.strengths||"")+'</textarea></div><div class="field full"><label>Context notes</label><textarea id="hlNotes">'+esc(h.notes||p.notes||"")+'</textarea></div></div>',"Save profile",function(){s.homeLanguageLiteracy={reading:val("hlRead"),writing:val("hlWrite"),schoolingLanguage:val("hlSchoolLang"),notes:val("hlNotes")};s.previousSchoolingDetails={years:val("psYears"),curriculum:val("psCurriculum"),interruptions:val("psInterrupt"),strengths:val("psStrengths"),notes:val("hlNotes")};s.previousSchooling=val("psCurriculum")||s.previousSchooling;save("Updated home-language and previous-schooling profile for "+s.name);closeModal();render()})
+}
+var subjectLanguageList=["Science","Maths","English","History","Geography","Humanities","Art","PE","Computing","Languages"];
+window.openSubjectLanguageProfile=function(id){
+ var s=studentById(id);if(!s)return;
+ modal("Subject-language profile",'<div class="form-grid"><div class="field"><label>Subject</label><select id="slSubject">'+subjectLanguageList.map(function(x){return "<option>"+x+"</option>"}).join("")+'</select></div>'+["Vocabulary","Reading","Writing","Oracy"].map(function(x){return '<div class="field"><label>'+x+' 1–5</label><input id="sl'+x+'" type="number" min="1" max="5" value="3"></div>'}).join("")+'<div class="field full"><label>Language demand / support note</label><textarea id="slNote"></textarea></div></div>',"Save subject profile",function(){var sub=val("slSubject");s.subjectLanguageProfiles=s.subjectLanguageProfiles||{};s.subjectLanguageProfiles[sub]={date:today(),vocabulary:Number(val("slVocabulary")),reading:Number(val("slReading")),writing:Number(val("slWriting")),oracy:Number(val("slOracy")),note:val("slNote")};save("Updated "+sub+" language profile for "+s.name);closeModal();render()})
+}
+var examCommandWords=["State","Describe","Explain","Compare","Analyse","Evaluate","Justify","Discuss","Predict","Calculate"];
+window.openExamLanguageTracker=function(id){
+ var s=studentById(id);if(!s)return;s.examLanguage=s.examLanguage||{};
+ var html='<div class="notice">Rate how independently the pupil interprets each command word in exam-style questions.</div><div class="table-wrap"><table><thead><tr><th>Command word</th><th>Confidence</th></tr></thead><tbody>'+examCommandWords.map(function(w){var cur=s.examLanguage[w]||"Not assessed";return '<tr><td>'+w+'</td><td><select id="exam_'+w+'">'+["Not assessed","Needs explicit support","Developing","Mostly independent","Secure"].map(function(x){return '<option '+(cur===x?"selected":"")+'>'+x+'</option>'}).join("")+'</select></td></tr>'}).join("")+'</tbody></table></div>';
+ modal("GCSE / exam-language tracker",html,"Save tracker",function(){examCommandWords.forEach(function(w){s.examLanguage[w]=val("exam_"+w)});save("Updated exam-language tracker for "+s.name);closeModal();render()})
+}
+function studentContextExtensions(s){
+ var h='<div class="grid two" style="margin-top:14px"><div class="card"><div class="section-title"><h3>Home-language literacy & schooling</h3><button class="btn" onclick="openHomeLanguageProfile(\''+s.id+'\')">Edit</button></div><p class="small"><b>Reading:</b> '+esc((s.homeLanguageLiteracy||{}).reading||"Not recorded")+' · <b>Writing:</b> '+esc((s.homeLanguageLiteracy||{}).writing||"Not recorded")+'</p><p class="small"><b>Previous schooling:</b> '+esc((s.previousSchoolingDetails||{}).years||"—")+' year(s) · '+esc((s.previousSchoolingDetails||{}).curriculum||"No curriculum details recorded")+'</p></div><div class="card"><div class="section-title"><h3>Subject & exam language</h3><div class="actions"><button class="btn" onclick="openSubjectLanguageProfile(\''+s.id+'\')">Subject profile</button><button class="btn" onclick="openExamLanguageTracker(\''+s.id+'\')">Exam language</button></div></div>';
+ var subs=Object.keys(s.subjectLanguageProfiles||{});h+=subs.length?subs.map(function(k){var x=s.subjectLanguageProfiles[k];return '<div class="priority"><div><b>'+esc(k)+'</b><span>Vocabulary '+x.vocabulary+'/5 · Reading '+x.reading+'/5 · Writing '+x.writing+'/5 · Oracy '+x.oracy+'/5</span></div></div>'}).join(""):'<div class="empty">No detailed subject-language profiles yet.</div>';return h+'</div></div>'
+}
+window.openWritingSample=function(id){
+ var s=studentById(id);if(!s)return;
+ modal("Writing sample rubric",'<div class="form-grid"><div class="field"><label>Date</label><input id="wsDate" type="date" value="'+today()+'"></div><div class="field"><label>Subject / context</label><input id="wsSubject"></div>'+["Task fulfilment","Organisation","Vocabulary","Grammar","Cohesion"].map(function(x,i){return '<div class="field"><label>'+x+' 0–5</label><input id="ws'+i+'" type="number" min="0" max="5" value="3"></div>'}).join("")+'<div class="field full"><label>Evidence / extract note</label><textarea id="wsNote"></textarea></div><div class="field full"><label>Drive/file reference (optional)</label><input id="wsLink" placeholder="Paste a school-approved file link or add from Drive later"></div></div>',"Save writing sample",function(){s.writingSamples=s.writingSamples||[];s.writingSamples.push({id:uid("writing"),date:val("wsDate"),subject:val("wsSubject"),task:Number(val("ws0")),organisation:Number(val("ws1")),vocabulary:Number(val("ws2")),grammar:Number(val("ws3")),cohesion:Number(val("ws4")),note:val("wsNote"),fileLink:val("wsLink")});save("Added writing sample rubric for "+s.name);closeModal();render()})
+}
+window.openSpeakingSample=function(id){
+ var s=studentById(id);if(!s)return;
+ modal("Speaking sample rubric",'<div class="form-grid"><div class="field"><label>Date</label><input id="ssDate" type="date" value="'+today()+'"></div><div class="field"><label>Context</label><input id="ssContext"></div>'+["Interaction","Fluency","Vocabulary","Grammar","Intelligibility"].map(function(x,i){return '<div class="field"><label>'+x+' 0–5</label><input id="ss'+i+'" type="number" min="0" max="5" value="3"></div>'}).join("")+'<div class="field full"><label>Evidence note</label><textarea id="ssNote"></textarea></div><div class="field full"><label>Audio/file reference (optional)</label><input id="ssLink" placeholder="School-approved file link"></div></div>',"Save speaking sample",function(){s.speakingSamples=s.speakingSamples||[];s.speakingSamples.push({id:uid("speaking"),date:val("ssDate"),context:val("ssContext"),interaction:Number(val("ss0")),fluency:Number(val("ss1")),vocabulary:Number(val("ss2")),grammar:Number(val("ss3")),intelligibility:Number(val("ss4")),note:val("ssNote"),fileLink:val("ssLink")});save("Added speaking sample rubric for "+s.name);closeModal();render()})
+}
+function studentEvidenceSamples(s){
+ var ws=(s.writingSamples||[]).slice().reverse(),sp=(s.speakingSamples||[]).slice().reverse();
+ var h='<div class="grid two" style="margin-top:14px"><div class="card"><div class="section-title"><h3>Writing samples</h3><button class="btn" onclick="openWritingSample(\''+s.id+'\')">+ Sample</button></div>';
+ h+=ws.length?ws.slice(0,8).map(function(x){var avg=((x.task+x.organisation+x.vocabulary+x.grammar+x.cohesion)/5).toFixed(1);return '<div class="priority"><div><b>'+dateText(x.date)+' · '+esc(x.subject||"Writing sample")+'</b><span>Average rubric '+avg+'/5 · '+esc(x.note||"")+'</span></div></div>'}).join(""):'<div class="empty">No writing samples scored.</div>';
+ h+='</div><div class="card"><div class="section-title"><h3>Speaking samples</h3><button class="btn" onclick="openSpeakingSample(\''+s.id+'\')">+ Sample</button></div>';
+ h+=sp.length?sp.slice(0,8).map(function(x){var avg=((x.interaction+x.fluency+x.vocabulary+x.grammar+x.intelligibility)/5).toFixed(1);return '<div class="priority"><div><b>'+dateText(x.date)+' · '+esc(x.context||"Speaking sample")+'</b><span>Average rubric '+avg+'/5 · '+esc(x.note||"")+'</span></div></div>'}).join(""):'<div class="empty">No speaking samples scored.</div>';
+ return h+'</div></div>'
+}
+window.printClassSupportSheet=function(){
+ var forms=Array.from(new Set(currentStudents().map(function(s){return s.form}).filter(Boolean))).sort(),years=Array.from(new Set(currentStudents().map(function(s){return s.year}).filter(Boolean))).sort();
+ modal("Print class support sheet",'<div class="form-grid"><div class="field"><label>Year</label><select id="csYear"><option>All</option>'+years.map(function(x){return "<option>"+esc(x)+"</option>"}).join("")+'</select></div><div class="field"><label>Form</label><select id="csForm"><option>All</option>'+forms.map(function(x){return "<option>"+esc(x)+"</option>"}).join("")+'</select></div></div>',"Create sheet",function(){var y=val("csYear"),fm=val("csForm"),ss=currentStudents().filter(function(s){return (y==="All"||s.year===y)&&(fm==="All"||s.form===fm)});closeModal();var w=window.open("","_blank");if(!w)return;var rows=ss.map(function(s){var t=(s.targets||[]).find(function(x){return x.status!=="Completed"});return '<tr><td>'+esc(s.name)+'</td><td>'+esc(levelFromSkills(s.proficiency))+'</td><td>'+esc(t?t.text:"—")+'</td><td><ul>'+((s.strategies||[]).slice(0,3).map(function(x){return "<li>"+esc(x)+"</li>"}).join(""))+'</ul></td></tr>'}).join("");w.document.write('<html><head><title>Class EAL Support Sheet</title><style>body{font-family:Arial;margin:25px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #ccc;padding:7px;vertical-align:top}h1{color:#275d4b}</style></head><body><h1>EAL Class Support Sheet</h1><p>'+esc(y+" · "+fm)+'</p><table><thead><tr><th>Pupil</th><th>EAL stage</th><th>Current target</th><th>Three key strategies</th></tr></thead><tbody>'+rows+'</tbody></table><script>window.onload=function(){window.print()}<\/script></body></html>');w.document.close()})
+}
+window.printNewArrivalPack=function(id){
+ var s=studentById(id);if(!s)return;var w=window.open("","_blank");if(!w)return;var a=s.newArrival||{};
+ var checks=[["Language background",a.languageBackground],["Previous schooling",a.previousSchooling],["Baseline EAL profile",a.baseline],["Reading evidence",a.readingAge],["Parent/carer contact",a.parentContact],["Strategies shared",a.strategies],["First review scheduled",a.firstReview]];
+ w.document.write('<html><head><title>New Arrival Starter Pack</title><style>body{font-family:Arial;margin:32px;line-height:1.5}h1,h2{color:#275d4b}.box{border:1px solid #ccc;padding:12px;margin:12px 0}</style></head><body><h1>New Arrival Starter Pack</h1><h2>'+esc(s.name)+'</h2><div class="box"><b>Year/Form:</b> '+esc(s.year+" / "+s.form)+'<br><b>First language:</b> '+esc(s.firstLanguage||"—")+'<br><b>Admission:</b> '+dateText(s.admissionDate)+'<br><b>Key staff:</b> '+esc(s.keyStaff||"—")+'</div><h2>Initial checklist</h2><ul>'+checks.map(function(x){return "<li>"+(x[1]?"☑":"☐")+" "+x[0]+"</li>"}).join("")+'</ul><h2>Previous schooling</h2><p>'+esc((s.previousSchoolingDetails||{}).curriculum||s.previousSchooling||"Not yet recorded")+'</p><h2>Immediate classroom strategies</h2><ul>'+((s.strategies||[]).slice(0,6).map(function(x){return "<li>"+esc(x)+"</li>"}).join(""))+'</ul><h2>Baseline tasks</h2><p>Complete an EAL profile across listening, speaking, reading and writing; gather age-appropriate reading evidence; record pupil voice; confirm family communication needs; schedule the first review.</p><script>window.onload=function(){window.print()}<\/script></body></html>');w.document.close()
+}
+window.printParentInformationPack=function(id){
+ var s=studentById(id);if(!s)return;var target=(s.targets||[]).find(function(x){return x.status!=="Completed"}),inter=activeIntervention(s),w=window.open("","_blank");if(!w)return;
+ w.document.write('<html><head><title>Parent EAL Information Pack</title><style>body{font-family:Arial;margin:32px;line-height:1.55;max-width:800px}h1,h2{color:#275d4b}.box{border:1px solid #ddd;padding:12px;margin:12px 0}</style></head><body><h1>EAL Progress & Support Information</h1><h2>'+esc(s.name)+'</h2><div class="box"><b>What is going well</b><p>'+esc(s.strengths||"Strengths will be updated as evidence is collected.")+'</p></div><div class="box"><b>Current English-learning focus</b><p>'+esc(target?target.text:s.development||"Ongoing development of classroom and academic English.")+'</p></div><div class="box"><b>School support</b><p>'+esc(inter?inter.name+" — "+inter.focus:"Classroom strategies, monitoring and review.")+'</p></div><div class="box"><b>How families can help</b><p>Continue reading, discussion and learning in the home language as well as English. Talk about school topics, encourage questions, and share any information about previous schooling or language use that may help teachers understand learning strengths.</p></div><p><b>Preferred communication language:</b> '+esc(s.parentReportLanguage||"English")+'</p><script>window.onload=function(){window.print()}<\/script></body></html>');w.document.close()
 }
 
 function render(){
