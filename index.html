@@ -1492,6 +1492,7 @@ function renderReviewHub(){
  hubCard("Formal reviews","Record termly EAL review outcomes.","reviews")+
  hubCard("Review meeting workspace","Bring together reading, assessment, targets, interventions and pupil voice.","reviewmeeting")+
  hubCard("Cohorts & heatmap","Whole-school EAL analysis without ranking pupils.","cohorts")+
+ hubCard("Cohort progress & context","Progress over time, time in English and attendance context.","cohorttrends")+
  hubCard("Reports","Generate pupil, parent and termly reports.","reports")+
  hubCard("Printable support packs","Class sheets, new-arrival packs and parent information.","supportpacks")+
  hubCard("SLT / inspection","Anonymised provision and evidence overview.","slt")+
@@ -2666,6 +2667,42 @@ function renderPackLauncher(){
 window.launchNewArrivalPack=function(){var el=document.getElementById("packArrivalStudent");if(el)printNewArrivalPack(el.value)}
 window.launchParentPack=function(){var el=document.getElementById("packParentStudent");if(el)printParentInformationPack(el.value)}
 
+
+function coreProfileAverage(sk){return coreSkills.reduce(function(n,k){return n+(Number((sk||{})[k])||1)},0)/coreSkills.length}
+function studentEalChange(s){
+ var arr=(s.assessments||[]).slice().sort(function(a,b){return String(a.date).localeCompare(String(b.date))});if(arr.length<2)return null;
+ return coreProfileAverage(arr[arr.length-1].skills)-coreProfileAverage(arr[0].skills)
+}
+function timeInEnglishMonths(s){var start=s.ukEntry||s.admissionDate;if(!start)return null;return Math.max(0,monthsBetween(start,today()))}
+function timeInEnglishBand(m){if(m==null)return "Unknown";if(m<12)return "<1 year";if(m<24)return "1–2 years";if(m<36)return "2–3 years";return "3+ years"}
+function cohortTrendRows(){
+ var buckets={};
+ currentStudents().forEach(function(s){
+  (s.assessments||[]).forEach(function(a){
+   if(!a.date)return;
+   var y=a.date.slice(0,4),m=Number(a.date.slice(5,7));
+   var label=m>=9?"Autumn "+y:m<=3?"Spring "+y:"Summer "+y;
+   var key=m>=9?y+"-A":m<=3?y+"-S":y+"-U";
+   buckets[key]=buckets[key]||{label:label,points:[]};
+   buckets[key].points.push(coreProfileAverage(a.skills))
+  })
+ });
+ return Object.keys(buckets).sort().map(function(k){var b=buckets[k];return {label:b.label,count:b.points.length,avg:b.points.reduce(function(a,n){return a+n},0)/b.points.length}})
+}
+function renderCohortTrends(){
+ var ss=currentStudents(),trend=cohortTrendRows(),bands=["<1 year","1–2 years","2–3 years","3+ years","Unknown"];
+ var h=pageHead("Cohort Progress & Context","Progress over time, length of time in English and attendance shown as context","");
+ h+='<div class="notice privacy" style="margin-bottom:12px">These views are descriptive. Attendance and time in English are contextual information and should not be treated as automatic explanations for progress.</div>';
+ h+='<div class="card"><div class="section-title"><h3>Whole-cohort EAL profile trend</h3><span class="small muted">Average of recorded Listening, Speaking, Reading and Writing assessments</span></div>';
+ if(!trend.length)h+='<div class="empty">No repeated EAL assessment data yet.</div>';
+ else h+='<div class="grid four">'+trend.map(function(x){return '<div class="lang-card"><strong>'+x.avg.toFixed(2)+'/5</strong><span class="small muted">'+esc(x.label)+' · '+x.count+' assessment(s)</span></div>'}).join("")+'</div>';
+ h+='</div>';
+ h+='<div class="card" style="margin-top:14px"><h3>Length of time in English-medium education</h3><div class="grid five">'+bands.map(function(b){var a=ss.filter(function(s){return timeInEnglishBand(timeInEnglishMonths(s))===b}),avg=a.length?a.reduce(function(n,s){return n+coreProfileAverage(s.proficiency)},0)/a.length:null;return '<div class="lang-card"><strong>'+a.length+'</strong><span class="small muted">'+esc(b)+(avg!=null?' · avg '+avg.toFixed(1)+'/5':"")+'</span></div>'}).join("")+'</div></div>';
+ h+='<div class="card" style="margin-top:14px"><h3>Attendance & progress context</h3><div class="table-wrap"><table><thead><tr><th>Pupil</th><th>Attendance</th><th>Time in English</th><th>EAL profile change</th><th>Reading change</th></tr></thead><tbody>';
+ ss.forEach(function(s){var ec=studentEalChange(s),rp=readingProgress(s),tim=timeInEnglishMonths(s);h+='<tr><td><span class="link" onclick="openStudent(\''+s.id+'\')">'+esc(s.name)+'</span></td><td>'+esc((s.attendance||{}).percent||"—")+(s.attendance&&s.attendance.percent?"%":"")+'</td><td>'+(tim==null?"—":timeInEnglishBand(tim)+" ("+tim+" mo)")+'</td><td>'+(ec==null?"—":(ec>=0?"+":"")+ec.toFixed(2)+" avg points")+'</td><td>'+(rp?((rp.gain>=0?"+":"")+rp.gain+" months"):"—")+'</td></tr>'});
+ return h+'</tbody></table></div></div>'
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
@@ -2705,6 +2742,7 @@ function render(){
  else if(ui.view==="sixweeks")html=renderSixWeeks();
  else if(ui.view==="ealtest")html=renderEalTestPro();
  else if(ui.view==="cohorts")html=renderCohortsEnhanced();
+ else if(ui.view==="cohorttrends")html=renderCohortTrends();
  else if(ui.view==="reports")html=renderReportsEnhanced();
  else if(ui.view==="supportpacks")html=renderPackLauncher();
  else if(ui.view==="slt")html=renderSlt();
