@@ -63,6 +63,7 @@ dialog{width:min(980px,96vw);border:0;border-radius:16px;padding:0;box-shadow:0 
     <button data-view="dashboard" class="active">⌂ Dashboard</button>
     <button data-view="students">◎ Students</button>
     <button data-view="assessmenthub">✦ Assessment Centre</button>
+    <button data-view="studenttests">📝 Student Tests</button>
     <button data-view="supporthub">◇ Support & Provision</button>
     <button data-view="reviewhub">✓ Reviews & Reports</button>
     <button data-view="drive">▣ Google Drive</button>
@@ -697,6 +698,7 @@ function renderDashboardEnhanced(){
  var h=renderDashboard(),items=calendarItems(),soon=addMonths(today(),1),due=items.filter(function(x){return x.date<=soon}).slice(0,6);
  h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Coordinator morning briefing</h3><span class="small muted">Today and upcoming actions</span></div><div class="grid three"><div><div class="score">'+getPriorities().length+'</div><div class="small muted">priority actions</div></div><div><div class="score">'+currentStudents().filter(readingDue).length+'</div><div class="small muted">reading reassessments due</div></div><div><div class="score">'+(state.tasks||[]).filter(function(t){return t.status!=="Completed"}).length+'</div><div class="small muted">open staff tasks</div></div></div>';
  if(due.length)h+='<div style="margin-top:10px">'+due.map(function(x){return '<div class="priority"><div><b>'+dateText(x.date)+' · '+esc(x.type)+'</b><span>'+esc(x.student?x.student.name:"Whole-school")+'</span></div></div>'}).join("")+'</div>';
+ h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Student EAL Tests</h3><span class="badge brand">Forms A & B ready</span></div><div class="grid three"><div><b>Create a test</b><p class="small muted">Generate a six-digit pupil code.</p><button class="btn primary" onclick="setView(\'studenttests\')">Open Student Tests</button></div><div><b>Student entry</b><p class="small muted">Open the pupil code-entry screen.</p><button class="btn" onclick="setView(\'studenttest\')">Enter test code</button></div><div><b>Marking</b><p class="small muted">Finish speaking/writing and print results.</p><button class="btn" onclick="setView(\'testsessions\')">Test sessions</button></div></div></div>';
  return h+'</div>'
 }
 function heatCell(n){var pct=Math.max(0,Math.min(100,Number(n||1)*20));return '<div style="min-width:72px"><div class="track"><div class="fill" style="width:'+pct+'%"></div></div><span class="small">'+Number(n||1)+'/5</span></div>'}
@@ -1978,12 +1980,29 @@ function studentTestHistoryCard(s){
  return h+'</div>'
 }
 
+
+function renderStudentTestsHome(){
+ var tests=allStudentTests(),active=(state.testSessions||[]).filter(function(s){return s.status!=="Cancelled"}),ready=active.filter(function(s){return s.status==="Ready"||s.status==="In progress"}).length,marking=active.filter(function(s){return s.status==="Submitted"}).length;
+ var h=pageHead("Student Tests","Create, run, mark and review full student-completed EAL assessments",roleCanEdit()?'<button class="btn primary" onclick="openCreateStudentTest()">+ Create test code</button>':"");
+ h+='<div class="grid three"><div class="card kpi"><small>Available tests</small><strong>'+tests.length+'</strong><span>Including Forms A and B</span></div><div class="card kpi"><small>Open sessions</small><strong>'+ready+'</strong><span>Ready or in progress</span></div><div class="card kpi"><small>Awaiting marking</small><strong>'+marking+'</strong><span>Writing / speaking to complete</span></div></div>';
+ h+='<div class="grid three" style="margin-top:14px"><div class="card"><h3>For teachers</h3><p class="small muted">Choose a pupil and test, then generate a six-digit code.</p><button class="btn primary" onclick="openCreateStudentTest()">Create student test</button></div><div class="card"><h3>For students</h3><p class="small muted">Students enter their six-digit code here and complete the test in the app.</p><button class="btn primary" onclick="setView(\'studenttest\')">Enter test code</button></div><div class="card"><h3>Manage & mark</h3><p class="small muted">See live attempts, mark writing/speaking, review answers and print results.</p><button class="btn" onclick="setView(\'testsessions\')">Open test sessions</button></div></div>';
+ h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Available full tests</h3><span class="small muted">'+tests.length+' total</span></div><div class="grid two">';
+ tests.forEach(function(t){
+  var max=objectiveMax(t)+Number(t.writingMax||20)+Number(t.speakingMax||20);
+  h+='<div class="lang-card"><strong>'+esc(t.name)+'</strong><span class="small muted">'+esc(t.description||"Student-completed EAL assessment")+'</span><div class="small" style="margin-top:8px"><b>'+objectiveMax(t)+'</b> auto-marked objective marks · <b>'+Number(t.writingMax||20)+'</b> writing · <b>'+Number(t.speakingMax||20)+'</b> speaking · <b>'+max+'</b> total</div>'+(roleCanEdit()?'<button class="btn" style="margin-top:10px" onclick="openCreateStudentTest()">Create code</button>':"")+'</div>'
+ });
+ h+='</div></div>';
+ h+='<div class="notice privacy" style="margin-top:14px">Forms A and B are original school-built assessments. Imported commercial/publisher tests appear here only if your school has recorded permission to reproduce and administer them online.</div>';
+ return h
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
  else if(ui.view==="dashboard")html=renderDashboardEnhanced();
  else if(ui.view==="students")html=renderStudentsEnhanced();
  else if(ui.view==="assessmenthub")html=renderAssessmentHub();
+ else if(ui.view==="studenttests")html=renderStudentTestsHome();
  else if(ui.view==="studenttest")html=renderStudentTestPortalPro();
  else if(ui.view==="testsessions")html=renderTestSessionsPro();
  else if(ui.view==="supporthub")html=renderSupportHub();
@@ -2022,7 +2041,7 @@ document.getElementById("roleSelect").addEventListener("change",function(){if(su
 document.getElementById("privacyBtn").addEventListener("click",function(){ui.privacy=!ui.privacy;this.textContent="Privacy: "+(ui.privacy?"On":"Off");this.classList.toggle("primary",ui.privacy);render()});
 document.getElementById("globalSearch").addEventListener("keydown",function(e){if(e.key==="Enter"){globalSearchEnhanced(this.value);this.value=""}});
 window.ui=ui;window.render=render;window.setView=setView;
-load();render();initCentralIntegration();
+load();var requestedView=new URLSearchParams(window.location.search).get("view");if(requestedView)ui.view=requestedView;render();initCentralIntegration();
 if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}
 })();
 </script>
