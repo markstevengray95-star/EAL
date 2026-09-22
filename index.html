@@ -1463,6 +1463,9 @@ function renderSupportHub(){
  hubCard("Provision map","Current provision, staff ownership, targets and review dates.","provision")+
  hubCard("Interventions","Create and review targeted EAL interventions.","interventions")+
  hubCard("Intervention library","Choose from ready-to-use EAL intervention templates.","interventionlibrary")+
+ hubCard("Intervention planner","Suggest individual provision and build groups from similar needs.","interventionplanner")+
+ hubCard("Intervention groups","Manage groups, registers and group session attendance.","interventiongroups")+
+ hubCard("Caseload & workload","Review staff minutes, caseload and timetable clashes.","workload")+
  hubCard("Intervention sessions","Track attendance, focus and minutes of support delivered.","sessions")+
  hubCard("Support timetable","Plan support slots and identify lesson clashes.","supportplan")+
  hubCard("Strategy library","Assign practical classroom strategies to pupil profiles.","strategies")+
@@ -2353,6 +2356,108 @@ window.restoreImport=function(importId){
  var d=JSON.parse(p.data);state.settings=d.settings;state.students=d.students;state.archive=d.archive||[];state.tasks=d.tasks||[];state.staffAccounts=d.staffAccounts||[];ensureEnhancedData();save("Rolled back spreadsheet import "+(item.fileName||""));render();toast("Import rollback complete")
 }
 
+
+function recommendedInterventionTemplate(s){
+ var d=lowestDomain(s),key=d.key,reading=readingLatest(s),gap=reading?readingGap(s,reading):null;
+ if(!s.assessments||!s.assessments.length)return interventionTemplateById("new-arrival");
+ if(key==="listening"||key==="classroom")return interventionTemplateById("listening-instructions");
+ if(key==="speaking")return interventionTemplateById("speaking-oracy");
+ if(key==="reading"){
+  if(gap!=null&&gap<-18)return interventionTemplateById("reading-comprehension");
+  return interventionTemplateById("reading-comprehension")
+ }
+ if(key==="writing")return interventionTemplateById("extended-writing");
+ if(key==="vocabulary"||key==="academic")return interventionTemplateById("academic-vocabulary");
+ if(key==="grammar")return interventionTemplateById("grammar-sentences");
+ return interventionTemplateById("classroom-language")
+}
+function hasActiveTemplate(s,templateId){
+ return (s.interventions||[]).some(function(i){return i.status!=="Completed"&&(i.templateId===templateId||String(i.name||"").toLowerCase()===String((interventionTemplateById(templateId)||{}).name||"").toLowerCase())})
+}
+function suggestedInterventionRows(){
+ return currentStudents().map(function(s){var t=recommendedInterventionTemplate(s);return {student:s,template:t,reason:skillLabels[lowestDomain(s).key]+" is currently the lowest-scoring language domain"}})
+}
+function buildSuggestedGroups(){
+ var map={};suggestedInterventionRows().forEach(function(x){
+  if(!x.template||hasActiveTemplate(x.student,x.template.id))return;
+  map[x.template.id]=map[x.template.id]||{template:x.template,students:[]};map[x.template.id].students.push(x.student)
+ });
+ return Object.keys(map).map(function(k){return map[k]}).filter(function(g){return g.students.length>=2}).sort(function(a,b){return b.students.length-a.students.length})
+}
+window.createSuggestedInterventionGroup=function(templateId){
+ var t=interventionTemplateById(templateId);if(!t)return;
+ var candidates=suggestedInterventionRows().filter(function(x){return x.template&&x.template.id===templateId&&!hasActiveTemplate(x.student,templateId)}).map(function(x){return x.student});
+ if(!candidates.length)return toast("No pupils currently match this suggestion");
+ var html='<div class="notice">Select pupils for this suggested group. Staff can edit the plan after creation.</div><div class="form-grid"><div class="field"><label>Group name</label><input id="grpName" value="'+esc(t.name)+'"></div><div class="field"><label>Staff</label><input id="grpStaff" value="EAL Team"></div><div class="field"><label>Frequency</label><input id="grpFreq" value="'+esc(t.frequency)+'"></div><div class="field"><label>Review date</label><input id="grpReview" type="date" value="'+addMonths(today(),2)+'"></div></div><div class="card" style="margin-top:10px"><h3>Pupils</h3>'+candidates.map(function(s){return '<label class="priority"><input type="checkbox" name="grpMember" value="'+s.id+'" checked><div><b>'+esc(s.name)+'</b><span>'+esc(s.year+" · "+levelFromSkills(s.proficiency)+" · "+skillLabels[lowestDomain(s).key])+'</span></div></label>'}).join("")+'</div>';
+ modal("Create intervention group",html,"Create group",function(){
+  var ids=Array.from(document.querySelectorAll('input[name="grpMember"]:checked')).map(function(x){return x.value});if(!ids.length)return toast("Select at least one pupil");
+  var g={id:uid("group"),name:val("grpName"),templateId:t.id,memberIds:ids,staff:val("grpStaff"),frequency:val("grpFreq"),reviewDate:val("grpReview"),createdAt:new Date().toISOString(),status:"Active"};
+  state.interventionGroups=state.interventionGroups||[];state.interventionGroups.push(g);
+  ids.forEach(function(id){var s=studentById(id);if(!s||hasActiveTemplate(s,t.id))return;s.interventions=s.interventions||[];s.interventions.push({id:uid("int"),groupId:g.id,templateId:t.id,name:g.name,focus:t.focus,startDate:today(),endDate:addMonths(today(),Math.max(1,Math.round((t.weeks||6)/4.3))),reviewDate:g.reviewDate,frequency:g.frequency,staff:g.staff,baseline:t.baseline,target:t.target,status:"Active",outcome:"",impactRating:"Not reviewed"});s.strategies=s.strategies||[];(t.strategies||[]).forEach(function(x){if(s.strategies.indexOf(x)<0)s.strategies.push(x)})});
+  save("Created intervention group "+g.name+" for "+ids.length+" pupils");closeModal();setView("interventiongroups");toast("Intervention group created")
+ })
+}
+window.printInterventionRegister=function(groupId){
+ var g=(state.interventionGroups||[]).find(function(x){return x.id===groupId});if(!g)return;var w=window.open("","_blank");if(!w)return toast("Allow pop-ups to print the register");
+ var members=(g.memberIds||[]).map(studentById).filter(Boolean),dates=Array.from({length:10},function(_,i){return i+1});
+ var rows=members.map(function(s){return '<tr><td>'+esc(s.name)+'</td>'+dates.map(function(){return '<td style="height:28px"></td>'}).join("")+'</tr>'}).join("");
+ w.document.write('<html><head><title>Intervention Register</title><style>body{font-family:Arial,sans-serif;margin:25px;color:#222}h1{color:#275d4b}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #ccc;padding:6px;text-align:center}td:first-child,th:first-child{text-align:left}</style></head><body><h1>'+esc(g.name)+'</h1><p><b>Staff:</b> '+esc(g.staff)+' · <b>Frequency:</b> '+esc(g.frequency)+' · <b>Review:</b> '+dateText(g.reviewDate)+'</p><table><thead><tr><th>Pupil</th>'+dates.map(function(n){return "<th>Session "+n+"</th>"}).join("")+'</tr></thead><tbody>'+rows+'</tbody></table><p>Key: ✓ attended · A absent · C cancelled. Add brief focus/evidence notes separately in the app.</p><script>window.onload=function(){window.print()}<\/script></body></html>');w.document.close()
+}
+function interventionEvidenceSummary(s,i){
+ var assess=(s.assessments||[]).slice().sort(function(a,b){return String(a.date).localeCompare(String(b.date))}),before=assess.filter(function(a){return a.date<=i.startDate}).slice(-1)[0],after=assess.filter(function(a){return a.date>=i.startDate}).slice(-1)[0];
+ var reads=(s.readingAssessments||[]).slice().sort(function(a,b){return String(a.date).localeCompare(String(b.date))}),rb=reads.filter(function(a){return a.date<=i.startDate}).slice(-1)[0],ra=reads.filter(function(a){return a.date>=i.startDate}).slice(-1)[0];
+ var domainChange=null;if(before&&after){domainChange=(coreSkills.reduce(function(n,k){return n+(Number(after.skills[k]||1)-Number(before.skills[k]||1))},0)/coreSkills.length)}
+ var readingChange=rb&&ra?Number(ra.readingMonths)-Number(rb.readingMonths):null;
+ return {domainChange:domainChange,readingChange:readingChange,before:before,after:after,rb:rb,ra:ra}
+}
+function renderInterventionGroups(){
+ var groups=state.interventionGroups||[],suggested=buildSuggestedGroups();
+ var h=pageHead("Intervention Groups","Suggested grouping, printable registers and intervention delivery overview",roleCanEdit()?'<button class="btn primary" onclick="setView(\'interventionplanner\')">Build suggested groups</button>':"");
+ h+='<div class="grid three"><div class="card kpi"><small>Active groups</small><strong>'+groups.filter(function(g){return g.status!=="Completed"}).length+'</strong><span>Saved intervention groups</span></div><div class="card kpi"><small>Group suggestions</small><strong>'+suggested.length+'</strong><span>Based on current language profile</span></div><div class="card kpi"><small>Sessions logged</small><strong>'+(state.interventionSessions||[]).length+'</strong><span>Individual/group delivery evidence</span></div></div>';
+ if(!groups.length)h+='<div class="empty">No intervention groups created yet. Open the Intervention Planner to create suggested groups.</div>';
+ else h+='<div class="grid two" style="margin-top:14px">'+groups.map(function(g){var members=(g.memberIds||[]).map(studentById).filter(Boolean);return '<div class="card"><div class="section-title"><h3>'+esc(g.name)+'</h3>'+badge(g.status||"Active",g.status==="Completed"?"ok":"brand")+'</div><p class="small muted">'+esc(g.staff||"")+' · '+esc(g.frequency||"")+' · review '+dateText(g.reviewDate)+'</p><p class="small"><b>'+members.length+' pupils:</b> '+esc(members.map(function(s){return s.name}).join(", "))+'</p><div class="actions"><button class="btn" onclick="printInterventionRegister(\''+g.id+'\')">Print register</button><button class="btn" onclick="openGroupSession(\''+g.id+'\')">Log group session</button></div></div>'}).join("")+'</div>';
+ return h
+}
+window.openGroupSession=function(groupId){
+ var g=(state.interventionGroups||[]).find(function(x){return x.id===groupId});if(!g)return;
+ var members=(g.memberIds||[]).map(studentById).filter(Boolean);
+ modal("Log group intervention session",'<div class="form-grid"><div class="field"><label>Date</label><input id="gsDate" type="date" value="'+today()+'"></div><div class="field"><label>Minutes</label><input id="gsMins" type="number" value="25"></div><div class="field"><label>Focus</label><input id="gsFocus" value="'+esc((interventionTemplateById(g.templateId)||{}).focus||g.name)+'"></div><div class="field"><label>Staff</label><input id="gsStaff" value="'+esc(g.staff||"EAL Team")+'"></div><div class="field full"><label>Brief evidence note</label><textarea id="gsNote"></textarea></div></div><div class="card"><h3>Attendance</h3>'+members.map(function(s){return '<label class="priority"><input type="checkbox" name="gsAttend" value="'+s.id+'" checked><div><b>'+esc(s.name)+'</b><span>Tick if attended</span></div></label>'}).join("")+'</div>',"Save session",function(){
+  members.forEach(function(s){var attended=!!document.querySelector('input[name="gsAttend"][value="'+s.id+'"]:checked');state.interventionSessions.push({id:uid("ses"),groupId:g.id,studentId:s.id,date:val("gsDate"),interventionName:g.name,focus:val("gsFocus"),minutes:Number(val("gsMins"))||0,staff:val("gsStaff"),attended:attended,note:val("gsNote")})});
+  save("Logged group intervention session "+g.name);closeModal();render();toast("Group session logged")
+ })
+}
+function renderInterventionPlanner(){
+ var rows=suggestedInterventionRows(),groups=buildSuggestedGroups();
+ var h=pageHead("Intervention Planner","Rule-based suggestions to help staff choose provision; final decisions remain with staff","");
+ h+='<div class="notice privacy" style="margin-bottom:12px">Suggestions use the pupil’s current lowest-scoring language domain and existing provision. They are not automatic placements or diagnoses.</div>';
+ h+='<div class="card"><div class="section-title"><h3>Suggested groups</h3><span class="small muted">'+groups.length+' possible group(s)</span></div>';
+ if(!groups.length)h+='<div class="empty">No multi-pupil group suggestions at present.</div>';else groups.forEach(function(g){h+='<div class="priority"><div><b>'+esc(g.template.name)+'</b><span>'+g.students.length+' pupils · '+esc(g.students.map(function(s){return s.name}).join(", "))+'</span></div>'+(roleCanEdit()?'<button class="btn primary" onclick="createSuggestedInterventionGroup(\''+g.template.id+'\')">Create group</button>':"")+'</div>'});
+ h+='</div><div class="card" style="margin-top:14px"><h3>Individual recommendations</h3><div class="table-wrap"><table><thead><tr><th>Pupil</th><th>Lowest domain</th><th>Suggested intervention</th><th>Already active?</th><th></th></tr></thead><tbody>'+rows.map(function(x){var active=x.template&&hasActiveTemplate(x.student,x.template.id);return '<tr><td><span class="link" onclick="openStudent(\''+x.student.id+'\',\'support\')">'+esc(x.student.name)+'</span></td><td>'+esc(skillLabels[lowestDomain(x.student).key])+' '+lowestDomain(x.student).score+'/5</td><td>'+esc(x.template?x.template.name:"Review manually")+'</td><td>'+badge(active?"Yes":"No",active?"ok":"warn")+'</td><td>'+(!active&&roleCanEdit()&&x.template?'<button class="btn" onclick="openIntervention(\''+x.student.id+'\',\''+x.template.id+'\')">Start</button>':"")+'</td></tr>'}).join("")+'</tbody></table></div></div>';
+ return h
+}
+function overlapMinutes(a,b){
+ if(a.day!==b.day)return false;var am=Number(String(a.start||"00:00").split(":")[0])*60+Number(String(a.start||"00:00").split(":")[1]),ae=Number(String(a.end||"00:00").split(":")[0])*60+Number(String(a.end||"00:00").split(":")[1]),bm=Number(String(b.start||"00:00").split(":")[0])*60+Number(String(b.start||"00:00").split(":")[1]),be=Number(String(b.end||"00:00").split(":")[0])*60+Number(String(b.end||"00:00").split(":")[1]);return Math.max(am,bm)<Math.min(ae,be)
+}
+function supportClashes(){
+ var rows=state.supportTimetable||[],out=[];for(var i=0;i<rows.length;i++)for(var j=i+1;j<rows.length;j++){var a=rows[i],b=rows[j];if(a.studentId===b.studentId&&overlapMinutes(a,b))out.push({type:"Overlapping pupil support",a:a,b:b});if(a.staff&&b.staff&&a.staff===b.staff&&overlapMinutes(a,b))out.push({type:"Staff double-booked",a:a,b:b})}
+ var byMiss={};rows.forEach(function(x){if(x.missedLesson){var k=x.studentId+"|"+String(x.missedLesson).toLowerCase();byMiss[k]=(byMiss[k]||[]).concat(x)}});Object.keys(byMiss).forEach(function(k){if(byMiss[k].length>=2)out.push({type:"Repeated withdrawal from "+byMiss[k][0].missedLesson,a:byMiss[k][0],b:byMiss[k][1]})});return out
+}
+function renderWorkload(){
+ var rows=state.supportTimetable||[],staff={};rows.forEach(function(x){var n=x.staff||"Unassigned";staff[n]=staff[n]||{minutes:0,slots:0,pupils:new Set()};staff[n].minutes+=Number(x.minutes)||0;staff[n].slots++;staff[n].pupils.add(x.studentId)});
+ currentStudents().forEach(function(s){(s.interventions||[]).filter(function(i){return i.status!=="Completed"}).forEach(function(i){var n=i.staff||"Unassigned";staff[n]=staff[n]||{minutes:0,slots:0,pupils:new Set()};staff[n].pupils.add(s.id)})});
+ var clashes=supportClashes(),h=pageHead("Caseload & Workload","Weekly staffing, pupil caseload and timetable-clash checks","");
+ h+='<div class="grid three"><div class="card kpi"><small>Staff with provision</small><strong>'+Object.keys(staff).length+'</strong><span>Named in interventions/timetable</span></div><div class="card kpi"><small>Weekly planned minutes</small><strong>'+rows.reduce(function(n,x){return n+(Number(x.minutes)||0)},0)+'</strong><span>Across all support slots</span></div><div class="card kpi"><small>Clash warnings</small><strong>'+clashes.length+'</strong><span>Requires staff review</span></div></div>';
+ h+='<div class="card" style="margin-top:14px"><h3>Staff workload</h3><div class="table-wrap"><table><thead><tr><th>Staff</th><th>Pupil caseload</th><th>Weekly slots</th><th>Planned minutes</th></tr></thead><tbody>'+Object.keys(staff).sort().map(function(n){return '<tr><td>'+esc(n)+'</td><td>'+staff[n].pupils.size+'</td><td>'+staff[n].slots+'</td><td>'+staff[n].minutes+'</td></tr>'}).join("")+'</tbody></table></div></div>';
+ h+='<div class="card" style="margin-top:14px"><h3>Clash / withdrawal warnings</h3>'+(clashes.length?clashes.map(function(x){var s=studentById(x.a.studentId);return '<div class="priority"><div><b>'+esc(x.type)+'</b><span>'+esc(s?s.name:"")+" · "+esc(x.a.day+" "+x.a.start+"–"+x.a.end)+(x.a.missedLesson?" · "+esc(x.a.missedLesson):"")+'</span></div>'+badge("Review","warn")+'</div>'}).join(""):'<div class="empty">No support timetable clashes detected.</div>')+'</div>';
+ return h
+}
+function renderImpactPro(){
+ var h=renderImpactEnhanced();
+ h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Before / after evidence</h3><span class="small muted">Language profile and reading evidence around intervention start</span></div><div class="table-wrap"><table><thead><tr><th>Pupil</th><th>Intervention</th><th>4-skill profile change</th><th>Reading-age change</th><th>Delivered minutes</th></tr></thead><tbody>';
+ currentStudents().forEach(function(s){(s.interventions||[]).forEach(function(i){var e=interventionEvidenceSummary(s,i),mins=(state.interventionSessions||[]).filter(function(x){return x.studentId===s.id&&x.attended&&(x.groupId===i.groupId||x.interventionName===i.name)}).reduce(function(n,x){return n+(Number(x.minutes)||0)},0);h+='<tr><td>'+esc(s.name)+'</td><td>'+esc(i.name)+'</td><td>'+(e.domainChange==null?"Insufficient assessments":badge((e.domainChange>=0?"+":"")+e.domainChange.toFixed(2)+" average domain points",e.domainChange>0?"ok":e.domainChange<0?"warn":""))+'</td><td>'+(e.readingChange==null?"Insufficient reading data":badge((e.readingChange>=0?"+":"")+e.readingChange+" months",e.readingChange>0?"ok":""))+'</td><td>'+mins+'</td></tr>'})});
+ return h+'</tbody></table></div><div class="notice" style="margin-top:10px">Before/after change is descriptive evidence. It does not establish that the intervention caused the change.</div></div>'
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
@@ -2370,6 +2475,9 @@ function render(){
  else if(ui.view==="assessments")html=renderAssessments();
  else if(ui.view==="interventions")html=renderInterventions();
  else if(ui.view==="interventionlibrary")html=renderInterventionLibrary();
+ else if(ui.view==="interventionplanner")html=renderInterventionPlanner();
+ else if(ui.view==="interventiongroups")html=renderInterventionGroups();
+ else if(ui.view==="workload")html=renderWorkload();
  else if(ui.view==="observations")html=renderObservations();
  else if(ui.view==="reviews")html=renderReviews();
  else if(ui.view==="reviewmeeting")html=renderReviewMeeting();
@@ -2378,7 +2486,7 @@ function render(){
  else if(ui.view==="teacher")html=renderTeacherView();
  else if(ui.view==="calendar")html=renderCalendar();
  else if(ui.view==="tasks")html=renderTasks();
- else if(ui.view==="impact")html=renderImpactEnhanced();
+ else if(ui.view==="impact")html=renderImpactPro();
  else if(ui.view==="sessions")html=renderSessions();
  else if(ui.view==="supportplan")html=renderSupportPlan();
  else if(ui.view==="feedback")html=renderFeedback();
