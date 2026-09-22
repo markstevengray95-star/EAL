@@ -488,6 +488,317 @@ var interventionTemplates=[
  {id:"subject-language",name:"Subject-language booster",category:"Curriculum language",focus:"Language demands in a selected subject",frequency:"2 × 20 minutes weekly",weeks:6,baseline:"Needs language support to show subject knowledge independently.",target:"Use key subject vocabulary and common response structures more independently in the selected subject.",strategies:["Pre-teach upcoming vocabulary","Use dual-coded examples","Model subject response structures","Coordinate with subject teacher"]},
  {id:"literacy-foundations",name:"Foundational literacy support",category:"Literacy",focus:"Letter-sound knowledge, decoding and basic written language where assessment shows a genuine literacy need",frequency:"3 × 20 minutes weekly",weeks:8,baseline:"Assessment indicates a specific foundational literacy need that cannot be explained by English proficiency alone.",target:"Improve the identified foundational literacy skill while continuing age-appropriate curriculum access.",strategies:["Use age-appropriate materials","Assess home-language literacy where possible","Avoid assuming EAL equals low literacy","Review progress frequently"]}
 ];
+
+var interventionPlanLibrary={
+ "new-arrival":{
+  rationale:"A short, structured induction programme to help a newly arrived pupil understand school routines, essential classroom language and how to ask for support while maintaining full access to age-appropriate curriculum learning.",
+  entryCriteria:["Recently joined the school or UK education system","Needs substantial support with routines, everyday classroom instructions or help-seeking","Baseline evidence shows that unfamiliar school language is limiting access more than subject understanding alone"],
+  beforeStarting:["Complete language/background and previous-schooling profile","Identify first-language literacy and prior curriculum experience where possible","Agree one named key adult and a peer buddy","Collect a short baseline of common school instructions and help-seeking language"],
+  resources:["Visual school map and timetable","Photo/visual routine cards","Personal vocabulary booklet or digital bank","Sentence stems for asking for help, clarification and repetition","Simple home-school information sheet"],
+  sessionRoutine:["3 min retrieval of previously taught routine/language","5 min explicitly model 2–4 new phrases or routines","7 min rehearse through role-play or real school task","3 min pupil explains/retells what to do","2 min record confidence and next practice point"],
+  weeklyPlan:[
+   {week:1,focus:"Orientation and safety",activities:["Tour key locations using a visual map","Teach names/roles of key adults","Rehearse how to ask for help, toilet, first aid and clarification","Check pupil can identify where to go in common situations"],evidence:"Pupil independently identifies at least 3 key places/adults and uses one help-seeking phrase."},
+   {week:2,focus:"Classroom routines",activities:["Teach equipment, register, homework and movement language","Match spoken instructions to visual actions","Practise 1-step then 2-step routines","Share the same key phrases with subject teachers"],evidence:"Pupil follows familiar classroom routines with reduced modelling."},
+   {week:3,focus:"Timetable and lesson transitions",activities:["Read timetable vocabulary","Practise locating next lesson and required equipment","Rehearse late/absence/problem phrases","Use real timetable rather than decontextualised worksheets"],evidence:"Pupil explains what lesson is next and what they need for it."},
+   {week:4,focus:"Participation language",activities:["Teach sentence starters for answering, agreeing, disagreeing and asking questions","Use structured paired rehearsal before whole-class response","Practise clarification phrases such as ‘Could you repeat…?’"],evidence:"Teacher records at least two examples of independent participation or clarification."},
+   {week:5,focus:"Independent access",activities:["Reduce visual/verbal prompts for familiar routines","Practise understanding short written notices and homework instructions","Use pupil voice to identify remaining difficult situations"],evidence:"Pupil completes a familiar routine or instruction with no adult prompt."},
+   {week:6,focus:"Review and transition to ongoing support",activities:["Repeat baseline school-language check","Collect subject-teacher feedback","Review pupil confidence and strategies","Agree one ongoing target and reduce unnecessary induction scaffolds"],evidence:"Baseline vs week-6 evidence shows which routines/language are now independent and which still need support."}
+  ],
+  measures:[
+   {name:"Routine independence",method:"Rate 0–3 weekly: 0 unable, 1 full prompt, 2 partial prompt, 3 independent.",target:"At least 2/3 across most familiar routines by final review."},
+   {name:"Instruction following",method:"Use the same 5 common school/classroom instructions at baseline, week 3 and final review; record number followed correctly.",target:"Improvement from baseline and reduced need for repetition."},
+   {name:"Pupil confidence",method:"1–5 pupil rating for knowing what to do and how to ask for help.",target:"Sustained upward trend or stable 4–5 with classroom evidence."}
+  ],
+  fidelity:["Use real school routines, not only worksheet practice","Do not withdraw the pupil from the same subject repeatedly","Keep language age-appropriate","Share the taught phrases/visuals with classroom staff"],
+  successCriteria:["Pupil can navigate common routines with substantially less prompting","Pupil independently uses clarification/help-seeking language","Subject teachers report improved access to normal classroom routines","Remaining needs are converted into specific ongoing EAL targets rather than extending induction indefinitely"]
+ },
+ "classroom-language":{
+  rationale:"Explicitly teaches the language pupils repeatedly meet in lessons so they can understand instructions, respond to questions and participate more independently.",
+  entryCriteria:["Teacher evidence shows frequent misunderstanding of common instructions/question stems","Pupil understands more when instructions are simplified or modelled","Difficulty is seen across more than one subject/context"],
+  beforeStarting:["Collect 8–10 commonly misunderstood instructions","Ask two subject teachers for examples","Baseline: give 6 familiar classroom instructions and record independence","Identify whether the main barrier is vocabulary, processing, sentence structure or confidence"],
+  resources:["Instruction-word cards","Mini whiteboard","Visual sequencing cards","Subject worksheets using authentic command language","Personal clarification phrase card"],
+  sessionRoutine:["4 min retrieval of command/instruction language","6 min explicit teaching with model and non-example","6 min apply to authentic classroom task","3 min pupil retells instruction in own words","1 min confidence/fidelity check"],
+  weeklyPlan:[
+   {week:1,focus:"Core instruction verbs",activities:["Teach identify, underline, circle, match, complete, choose","Use action-response practice","Pupil explains each instruction rather than only performing it"],evidence:"Score 0–6 on independent response to the target verbs."},
+   {week:2,focus:"Sequencing and multi-step instructions",activities:["Teach first/next/then/finally/before/after","Build 2-step then 3-step instructions","Pupil repeats instruction back before starting"],evidence:"Number of steps completed without repetition."},
+   {week:3,focus:"Question stems",activities:["Teach what/who/where/when/why/how","Sort question stems by likely answer type","Practise identifying exactly what information a question requires"],evidence:"Accuracy on 8 short question-stem examples."},
+   {week:4,focus:"Clarification and repair",activities:["Teach ‘Do you mean…?’, ‘Could you repeat…?’, ‘Which part…?’","Role-play deliberate misunderstandings","Reinforce asking before copying peers"],evidence:"Teacher notes independent clarification attempts in class."},
+   {week:5,focus:"Subject transfer",activities:["Apply instruction language to Science/Maths/English examples","Compare how the same command changes by subject","Reduce visual prompts"],evidence:"Subject teacher gives 0–3 independence rating."},
+   {week:6,focus:"Review and generalisation",activities:["Repeat baseline instructions","Observe in a normal lesson if practical","Select remaining words for classroom vocabulary bank"],evidence:"Baseline/final comparison plus teacher feedback."}
+  ],
+  measures:[
+   {name:"Instruction accuracy",method:"Repeat the same 6–10 instruction check at baseline, midpoint and final.",target:"At least 80% correct with no more than one repetition."},
+   {name:"Prompt level",method:"Weekly 0–3 independence rating.",target:"Move at least one independence level or reach 2–3 consistently."},
+   {name:"Classroom generalisation",method:"Subject teacher records one brief example each fortnight.",target:"Evidence in at least two different subjects."}
+  ],
+  fidelity:["Teach language through real tasks","Require pupil to explain meaning, not just copy an action","Allow processing time before repeating","Use the same wording across intervention and classroom where possible"],
+  successCriteria:["Understands common classroom instructions with fewer repetitions","Uses clarification strategies independently","Improvement is visible in at least two curriculum subjects"]
+ },
+ "academic-vocabulary":{
+  rationale:"Builds high-utility Tier 2 and subject-specific Tier 3 vocabulary through explicit meaning, morphology, retrieval and curriculum application.",
+  entryCriteria:["Vocabulary is limiting reading, speaking or written responses","Pupil relies heavily on everyday words despite stronger conceptual understanding","Teacher evidence identifies recurring academic words that block access"],
+  beforeStarting:["Select 20–30 high-value words from upcoming curriculum","Baseline 10-word meaning/use check","Identify useful first-language cognates or concepts where appropriate","Agree subjects in which transfer will be checked"],
+  resources:["Frayer-style word cards","Morphology/word-family grid","Retrieval quiz cards","Dual-coded examples","Authentic curriculum sentences/questions"],
+  sessionRoutine:["5 min cumulative retrieval","5 min teach 2–4 words deeply: meaning, morphology, examples/non-examples","8 min oral then written application","5 min mix old/new vocabulary in curriculum task","2 min self-rating and next retrieval date"],
+  weeklyPlan:[
+   {week:1,focus:"Meaning and concept",activities:["Teach first target set with student-friendly definitions","Connect to known concepts/home language where useful","Generate examples and non-examples"],evidence:"Baseline and immediate retrieval score."},
+   {week:2,focus:"Word families and morphology",activities:["Teach prefixes/suffixes/roots linked to target words","Build related nouns/verbs/adjectives","Use morphology to infer one unfamiliar word"],evidence:"Word-family accuracy and inference example."},
+   {week:3,focus:"Oral application",activities:["Use target words in explanation/comparison","Sentence stem rehearsal","Correct imprecise usage through recasting"],evidence:"Number used accurately in an oral curriculum explanation."},
+   {week:4,focus:"Reading in context",activities:["Locate words in authentic subject text","Infer meaning before checking definition","Annotate nearby clues"],evidence:"Context vocabulary check."},
+   {week:5,focus:"Written application",activities:["Use vocabulary in paragraph/exam response","Compare vague vs precise versions","Edit for word choice"],evidence:"Count accurate independent target-word uses in writing."},
+   {week:6,focus:"Spaced retrieval and transfer",activities:["Mixed cumulative quiz","Subject-teacher application task","Retire secure words and add next high-value set"],evidence:"Delayed retrieval percentage and subject-teacher confirmation."},
+   {week:7,focus:"Independent vocabulary strategies",activities:["Teach morphology/context/reference-tool decision process","Pupil creates own word card","Practise choosing which words are worth learning"],evidence:"Pupil independently records and learns a new curriculum word."},
+   {week:8,focus:"Final review",activities:["Repeat baseline word set with equivalent transfer examples","Review vocabulary bank","Agree ongoing retrieval routine"],evidence:"Baseline/final comparison plus independent curriculum use."}
+  ],
+  measures:[
+   {name:"Delayed retrieval",method:"Weekly cumulative quiz; record % correct without prompts.",target:"80%+ on words taught at least one week earlier."},
+   {name:"Independent use",method:"Sample normal classwork every two weeks and count accurate target-word use.",target:"Increasing accurate use without sentence frame."},
+   {name:"Transfer",method:"Teacher confirms use/understanding in at least two subjects.",target:"Evidence beyond the intervention session."}
+  ],
+  fidelity:["Teach fewer words deeply rather than long lists","Revisit words using spaced retrieval","Require oral and written use","Select words from actual curriculum demand"],
+  successCriteria:["Delayed retrieval improves materially from baseline","Pupil uses vocabulary accurately in normal curriculum work","Pupil applies at least one independent vocabulary-learning strategy"]
+ },
+ "reading-comprehension":{
+  rationale:"Develops active comprehension of curriculum texts: identifying main ideas, retrieving evidence, making inferences and resolving unfamiliar vocabulary.",
+  entryCriteria:["Decoding alone is stronger than comprehension","Pupil can read text aloud but struggles to explain meaning or answer questions","Difficulty persists after unfamiliar vocabulary is clarified"],
+  beforeStarting:["Choose an age-appropriate baseline text at accessible content level","Record scores separately for gist, retrieval, inference and vocabulary","Note scaffolds used","Check that decoding difficulty is not the sole barrier"],
+  resources:["Short authentic curriculum texts","Highlighters/annotation symbols","Comprehension question ladder","Vocabulary-in-context prompts","Graphic organiser"],
+  sessionRoutine:["4 min vocabulary preview","5 min teacher think-aloud/model","10 min guided reading with gradually reduced prompts","8 min 3–5 comprehension questions","3 min pupil explains which strategy helped"],
+  weeklyPlan:[
+   {week:1,focus:"Main idea and text purpose",activities:["Use title/headings/first-last sentences","Distinguish topic from main message","Summarise in one sentence"],evidence:"Main-idea score across two short texts."},
+   {week:2,focus:"Explicit retrieval",activities:["Scan for key words/synonyms","Highlight exact evidence","Answer in own words after locating evidence"],evidence:"Retrieval accuracy and prompt level."},
+   {week:3,focus:"Vocabulary in context",activities:["Use morphology and nearby sentence clues","Choose between plausible meanings","Explain which clue was useful"],evidence:"Vocabulary-in-context score."},
+   {week:4,focus:"Inference",activities:["Combine two clues","Use ‘This suggests… because…’","Separate text evidence from guess"],evidence:"Inference question accuracy with evidence."},
+   {week:5,focus:"Cohesion and reference",activities:["Track pronouns/connectives","Explain links between sentences/paragraphs","Reconstruct paragraph sequence"],evidence:"Cohesion/reference mini-check."},
+   {week:6,focus:"Subject transfer",activities:["Use current Science/Humanities/English text","Apply same strategy independently","Collect subject-teacher feedback"],evidence:"Normal-class text comprehension score."},
+   {week:7,focus:"Mixed strategy selection",activities:["Pupil labels question type","Chooses strategy before answering","Justifies evidence choice"],evidence:"Independent strategy-selection checklist."},
+   {week:8,focus:"Final review",activities:["Complete matched-difficulty comprehension task","Compare baseline by subskill","Agree next reading target"],evidence:"Subskill baseline/final table."}
+  ],
+  measures:[
+   {name:"Comprehension score",method:"Use short matched texts; record % for gist/retrieval/inference/vocabulary separately.",target:"Improvement in identified weak subskill, not only total score."},
+   {name:"Prompt dependence",method:"0–3 weekly rating: full scaffold to independent.",target:"Reduced prompts on comparable tasks."},
+   {name:"Classroom transfer",method:"Fortnightly sample from a real subject text.",target:"Strategy use and comprehension evident outside intervention."}
+  ],
+  fidelity:["Use age-appropriate content","Do not turn comprehension sessions into only oral reading practice","Record the type of question missed","Reduce scaffolds deliberately over time"],
+  successCriteria:["Weak comprehension subskills improve on matched tasks","Pupil can name/use a strategy independently","Classroom text access improves with fewer adult prompts"]
+ },
+ "reading-fluency":{
+  rationale:"Improves accurate, appropriately paced and phrased reading so cognitive effort can shift from word-by-word reading toward comprehension.",
+  entryCriteria:["Oral reading is slow/hesitant or poorly phrased","Reading effort appears to reduce understanding","Text difficulty has been checked and is appropriate for practice"],
+  beforeStarting:["Take a 1-minute baseline on an appropriate passage","Record correct words per minute, errors and comprehension check","Identify repeated error patterns","Avoid using speed alone as the goal"],
+  resources:["Short age-respectful passages","Timer","Phrase-marked versions","Error-record sheet","Brief comprehension questions"],
+  sessionRoutine:["2 min preview difficult words","2 min adult fluent model","5 min echo/paired reading","4 min repeated independent reading","2 min comprehension check and record score"],
+  weeklyPlan:[
+   {week:1,focus:"Accuracy before speed",activities:["Model careful reading","Track substitutions/omissions","Repeat short section until accurate"],evidence:"Error count and correct words."},
+   {week:2,focus:"Phrasing",activities:["Mark phrase boundaries","Echo read with intonation","Compare choppy vs phrased reading"],evidence:"0–3 phrasing rubric."},
+   {week:3,focus:"Automaticity",activities:["Repeated reading of short passage","Track correct words rather than raw speed","Stop if accuracy falls"],evidence:"Best accurate reading vs first attempt."},
+   {week:4,focus:"Prosody and punctuation",activities:["Use punctuation to shape pauses/intonation","Model dialogue/explanation text","Record and self-evaluate if appropriate"],evidence:"Prosody rubric and comprehension."},
+   {week:5,focus:"Unseen transfer",activities:["Move to unseen matched-level passage","Apply preview/phrasing independently"],evidence:"Unseen fluency score."},
+   {week:6,focus:"Final review",activities:["Repeat equivalent 1-minute assessment","Compare accuracy, phrasing and comprehension","Decide whether fluency practice should continue"],evidence:"Baseline/final fluency profile."}
+  ],
+  measures:[
+   {name:"Accuracy",method:"Correct words / total words on comparable passages.",target:"Maintain high accuracy while fluency improves."},
+   {name:"Fluency",method:"Correct words per minute plus 0–3 phrasing/prosody rubric.",target:"Upward trend without reduced comprehension."},
+   {name:"Comprehension",method:"2–3 quick questions after each passage.",target:"Comprehension remains stable or improves as fluency increases."}
+  ],
+  fidelity:["Use appropriately challenging passages","Never chase speed at the expense of accuracy/meaning","Use repeated reading briefly and purposefully","Monitor comprehension every session"],
+  successCriteria:["Reading is more accurate and phrased","Rate improves appropriately for the same level of text","Comprehension is maintained or improved"]
+ },
+ "extended-writing":{
+  rationale:"Builds the language and structure needed for extended curriculum responses by moving from oral rehearsal and modelling toward independent planning, drafting and editing.",
+  entryCriteria:["Subject knowledge is stronger than written expression","Writing lacks paragraph structure, cohesion or precise academic vocabulary","Pupil benefits from models/sentence frames but is not yet transferring independently"],
+  beforeStarting:["Collect an unaided baseline response to an authentic curriculum prompt","Score task fulfilment, organisation, vocabulary, grammar and cohesion","Choose one priority genre/subject","Agree which scaffolds should be faded"],
+  resources:["Model paragraphs","Colour-coded paragraph planner","Sentence-combining cards","Academic connective bank","Editing checklist"],
+  sessionRoutine:["5 min analyse/retrieve model language","5 min oral rehearsal of content","10 min guided writing of one section","7 min independent extension","3 min edit one agreed feature and log score"],
+  weeklyPlan:[
+   {week:1,focus:"Purpose and paragraph structure",activities:["Compare strong/weak responses","Identify point/evidence/explanation structure","Plan then write one paragraph"],evidence:"Organisation rubric score."},
+   {week:2,focus:"Sentence expansion",activities:["Combine simple clauses","Add reason/example/detail","Practise one useful complex pattern"],evidence:"Count accurate expanded sentences."},
+   {week:3,focus:"Cohesion",activities:["Teach reference/connectives selectively","Reorder a paragraph","Remove repetitive sentence openings"],evidence:"Cohesion rubric score."},
+   {week:4,focus:"Academic vocabulary and precision",activities:["Replace vague words","Use subject terminology accurately","Edit model for formal register"],evidence:"Accurate subject/Tier 2 vocabulary count."},
+   {week:5,focus:"Evidence and explanation",activities:["Distinguish evidence from explanation","Use ‘This shows/suggests… because…’ appropriately","Apply to current subject task"],evidence:"Evidence-explanation completion rate."},
+   {week:6,focus:"Reducing scaffold",activities:["Move from paragraph frame to keyword plan","Timed independent paragraph","Self-check against rubric"],evidence:"Quality maintained with less scaffold."},
+   {week:7,focus:"Transfer to another subject",activities:["Use same planning principles on a different curriculum genre","Identify what changes by subject"],evidence:"Second-subject writing rubric."},
+   {week:8,focus:"Final independent sample",activities:["Complete matched independent response","Score with same baseline rubric","Pupil identifies next writing target"],evidence:"Baseline/final rubric comparison."}
+  ],
+  measures:[
+   {name:"Writing rubric",method:"Score 0–5 for task, organisation, vocabulary, grammar and cohesion at baseline, midpoint and final.",target:"Improvement in target dimensions without increased scaffolding."},
+   {name:"Scaffold dependence",method:"Record scaffold level 0–3 each writing sample.",target:"Same/better quality with reduced scaffold."},
+   {name:"Curriculum transfer",method:"Collect one normal classwork sample every two weeks.",target:"Target structure/language appears in unaided curriculum writing."}
+  ],
+  fidelity:["Use real curriculum prompts","Model the thinking behind writing","Fade scaffolds deliberately","Do not correct every language error at once"],
+  successCriteria:["Writing rubric improves in selected dimensions","Pupil maintains quality with reduced scaffolding","Improvement transfers into normal subject work"]
+ },
+ "speaking-oracy":{
+  rationale:"Develops confidence and academic oral language through structured rehearsal, extended answers, clarification and discussion roles.",
+  entryCriteria:["Pupil gives very short answers despite stronger receptive understanding","Avoids classroom talk or relies on peers to speak","Needs support extending answers with reasons/examples"],
+  beforeStarting:["Collect a 1–2 minute baseline speaking sample","Rate interaction, fluency, vocabulary, grammar and intelligibility","Ask pupil where speaking feels easiest/hardest","Identify a normal classroom discussion context for transfer"],
+  resources:["Talk-role cards","Sentence stems","Visual prompt images/diagrams","Discussion question cards","Speaking rubric"],
+  sessionRoutine:["3 min low-stakes retrieval/talk warm-up","5 min model one oral structure","8 min paired rehearsal with roles","3 min repeat with reduced stems","1 min confidence and next target"],
+  weeklyPlan:[
+   {week:1,focus:"Complete answers",activities:["Expand one-word answers into full clauses","Use because/so to add reason","Recast rather than interrupt constantly"],evidence:"Average utterance length/complete-response tally."},
+   {week:2,focus:"Reason and example",activities:["Use claim-reason-example pattern","Partner prompts for ‘Why?’ and ‘Can you give an example?’"],evidence:"Number of independently extended responses."},
+   {week:3,focus:"Clarifying and questioning",activities:["Teach clarification stems","Pupil asks one relevant follow-up question","Practise repair after misunderstanding"],evidence:"Independent clarification/question count."},
+   {week:4,focus:"Discussion roles",activities:["Chair/summariser/challenger/evidence finder roles","Rehearse agreeing/disagreeing politely"],evidence:"Participation rubric during small-group discussion."},
+   {week:5,focus:"Academic explanation",activities:["Explain a process/diagram from current curriculum","Use sequencing and subject vocabulary","Repeat with fewer prompts"],evidence:"Speaking rubric plus target-vocabulary use."},
+   {week:6,focus:"Classroom transfer and final sample",activities:["Repeat matched speaking task","Collect subject-teacher evidence","Review confidence and next target"],evidence:"Baseline/final rubric and classroom participation evidence."}
+  ],
+  measures:[
+   {name:"Speaking rubric",method:"0–5 interaction, fluency, vocabulary, grammar and intelligibility.",target:"Improvement in agreed target areas."},
+   {name:"Participation frequency",method:"Teacher tallies meaningful contributions/clarifications weekly.",target:"Increased independent participation without forced public performance."},
+   {name:"Confidence",method:"Pupil 1–5 rating in paired/group/whole-class talk.",target:"Improvement alongside observed classroom access."}
+  ],
+  fidelity:["Allow rehearsal before public response","Value content and communication, not accent reduction","Use meaningful curriculum talk","Build confidence gradually rather than forcing performance"],
+  successCriteria:["Pupil gives longer, clearer responses","Uses reasons/examples/clarification more independently","Participation improves in normal lessons"]
+ },
+ "listening-instructions":{
+  rationale:"Strengthens understanding of spoken classroom language by explicitly teaching sequencing, identifying key information and using clarification/retell strategies.",
+  entryCriteria:["Misses information in multi-step instructions or longer teacher explanations","Performs better when instructions are visual or broken down","Needs frequent repetition beyond normal classroom processing time"],
+  beforeStarting:["Baseline 5 one-/two-/three-step instructions","Record number of repetitions/prompts","Ask teachers for authentic instruction examples","Check hearing/access needs are not being assumed to be EAL"],
+  resources:["Instruction cards","Sequencing visuals","Mini whiteboard for key words","Short teacher-recorded/teacher-read explanations","Retell checklist"],
+  sessionRoutine:["3 min retrieval sequencing language","5 min listen once for gist","5 min listen again for key details if planned","5 min carry out/retell instruction","2 min reflection on strategy used"],
+  weeklyPlan:[
+   {week:1,focus:"Key words in one-step instructions",activities:["Identify action + object","Ignore non-essential words","Carry out then explain"],evidence:"Independent one-step accuracy."},
+   {week:2,focus:"Two-step sequencing",activities:["Listen for first/then/before/after","Hold two actions in memory","Retell before carrying out"],evidence:"2-step accuracy and repetitions."},
+   {week:3,focus:"Three-step instructions",activities:["Chunk mentally","Use brief note/visual if appropriate","Identify order"],evidence:"3-step accuracy and prompt level."},
+   {week:4,focus:"Short explanations",activities:["Listen for topic, two details and reason","Use a simple note frame","Retell main message"],evidence:"Gist/detail score."},
+   {week:5,focus:"Clarification strategy",activities:["Decide when to ask for repetition vs specific clarification","Practise selective questions"],evidence:"Appropriate clarification examples."},
+   {week:6,focus:"Classroom transfer",activities:["Use authentic teacher-style instruction","Observe in subject lesson","Repeat baseline"],evidence:"Baseline/final instruction comparison."}
+  ],
+  measures:[
+   {name:"Instruction accuracy",method:"Matched 1–3 step instruction check.",target:"Higher accuracy and/or fewer repetitions."},
+   {name:"Repetition count",method:"Record how many repeats/prompts were needed.",target:"Downward trend on comparable tasks."},
+   {name:"Retell quality",method:"0–3: no key info to complete accurate retell.",target:"Improved retention of key steps/details."}
+  ],
+  fidelity:["Allow normal processing time before repeating","Do not make instructions artificially slow","Teach clarification rather than passive waiting","Use genuine classroom language"],
+  successCriteria:["Pupil follows longer instructions with fewer repeats","Retells key steps accurately","Uses clarification when genuinely needed"]
+ },
+ "grammar-sentences":{
+  rationale:"Targets a small number of high-impact grammar patterns within authentic curriculum writing rather than teaching decontextualised grammar broadly.",
+  entryCriteria:["Recurring grammar errors reduce clarity/precision","A specific pattern appears repeatedly across samples","Pupil has sufficient ideas/content but needs sentence-level control"],
+  beforeStarting:["Collect two short writing samples","Choose no more than 1–2 priority grammar features","Baseline 10 sentence edit/use check","Identify whether error transfers from speech or is writing-specific"],
+  resources:["Model/non-model sentences","Sentence-combining strips","Mini editing checklist","Curriculum writing samples","Personal error-pattern card"],
+  sessionRoutine:["4 min retrieve target rule/pattern","6 min compare examples/non-examples","7 min manipulate/combine sentences","6 min apply to real curriculum writing","2 min edit and tally target accuracy"],
+  weeklyPlan:[
+   {week:1,focus:"Identify target pattern",activities:["Notice error in pupil/model sentences","Explain meaning difference","Correct a small set"],evidence:"Baseline target-feature accuracy."},
+   {week:2,focus:"Controlled production",activities:["Complete/transform sentences","Contrast correct alternatives","Read aloud for meaning"],evidence:"Controlled sentence accuracy."},
+   {week:3,focus:"Sentence combining",activities:["Join ideas using target structure","Compare concise vs repetitive writing"],evidence:"Accuracy in combined sentences."},
+   {week:4,focus:"Curriculum application",activities:["Apply target to current subject paragraph","Highlight examples after drafting"],evidence:"Target-feature accuracy in class-style writing."},
+   {week:5,focus:"Independent editing",activities:["Teach find-check-correct routine","Pupil edits without teacher identifying exact location"],evidence:"Percentage of own errors independently corrected."},
+   {week:6,focus:"Second feature or consolidation",activities:["Only add second feature if first is secure","Otherwise vary context and reduce prompting"],evidence:"Stability across contexts."},
+   {week:7,focus:"Transfer sample",activities:["Use independent classwork","No intervention-specific frame","Review with subject teacher"],evidence:"Normal-class accuracy."},
+   {week:8,focus:"Final review",activities:["Repeat matched sentence check","Compare writing samples","Choose next grammar priority only if needed"],evidence:"Baseline/final target-feature accuracy."}
+  ],
+  measures:[
+   {name:"Target-feature accuracy",method:"Correct uses / opportunities in writing.",target:"Sustained improvement across at least two samples."},
+   {name:"Independent correction",method:"Errors independently found/corrected during editing.",target:"Increasing proportion corrected without adult location prompt."},
+   {name:"Transfer",method:"Check feature in unaided subject writing.",target:"Improvement outside intervention exercise."}
+  ],
+  fidelity:["Focus on one or two patterns","Link grammar to meaning","Apply immediately to curriculum writing","Avoid marking every error"],
+  successCriteria:["Target grammar pattern becomes more accurate","Pupil can edit the pattern increasingly independently","Improvement is visible in normal classwork"]
+ },
+ "exam-language":{
+  rationale:"Teaches pupils to interpret exam command words and translate them into an appropriate response structure so language does not obscure subject knowledge.",
+  entryCriteria:["Pupil knows content but loses marks by misreading command words","Responses mismatch required depth/structure","Difficulty appears across more than one assessment"],
+  beforeStarting:["Baseline 10 command-word identification task","Collect 3 recent exam responses","Note common misinterpretations","Choose priority command words from actual subjects"],
+  resources:["Command-word matrix","Annotated exam questions","Response-structure cards","Mark-scheme-derived teacher summary without copying proprietary content","Short practice questions"],
+  sessionRoutine:["5 min command-word retrieval","5 min identify what a question requires","10 min plan/answer one short question","7 min compare response to success criteria","3 min log error type and next word"],
+  weeklyPlan:[
+   {week:1,focus:"State/identify/describe",activities:["Sort commands by expected response","Practise concise factual responses","Avoid over-writing simple items"],evidence:"Command-to-response matching score."},
+   {week:2,focus:"Explain",activities:["Build cause/reason chains","Use because/therefore appropriately","Check every point answers why/how"],evidence:"Explanation structure score."},
+   {week:3,focus:"Compare",activities:["Require both sides in each comparison","Use whereas/similarly/difference language"],evidence:"Complete comparison points."},
+   {week:4,focus:"Analyse",activities:["Break evidence into pattern + evidence + interpretation","Use data/source examples"],evidence:"Analysis rubric."},
+   {week:5,focus:"Evaluate/justify",activities:["Generate criteria","Balance strengths/limitations","Reach evidence-based judgement"],evidence:"Judgement supported by evidence."},
+   {week:6,focus:"Mixed question selection",activities:["Annotate command, content, marks/time","Choose response structure independently"],evidence:"Accuracy identifying required structure."},
+   {week:7,focus:"Subject transfer",activities:["Use exam questions from two subjects","Compare how same command is realised"],evidence:"Teacher/mark evidence across subjects."},
+   {week:8,focus:"Final review",activities:["Repeat command-word baseline with new items","Compare recent assessment responses","Agree personal exam-language checklist"],evidence:"Baseline/final command-word accuracy and response match."}
+  ],
+  measures:[
+   {name:"Command-word interpretation",method:"Short 10-item identification/matching check.",target:"80%+ accuracy or clear improvement from baseline."},
+   {name:"Response match",method:"0–3 rubric: response does not match to fully matches command/depth.",target:"Upward trend across authentic questions."},
+   {name:"Assessment transfer",method:"Review normal subject assessments.",target:"Fewer command-word-related errors."}
+  ],
+  fidelity:["Use real curriculum questions","Teach what the command requires, not memorised filler phrases","Coordinate terminology with subject departments","Separate subject-knowledge gaps from language-demand gaps"],
+  successCriteria:["Pupil correctly interprets common command words","Response structure better matches question demand","Subject teachers see fewer language-demand errors"]
+ },
+ "subject-language":{
+  rationale:"Targets the vocabulary, sentence patterns, text structures and discussion demands of one curriculum subject while preserving full subject challenge.",
+  entryCriteria:["Pupil demonstrates conceptual understanding but struggles to express it in one subject","Subject teacher can identify recurring language demands","Need is specific enough to plan around upcoming curriculum"],
+  beforeStarting:["Meet/communicate briefly with subject teacher","Identify next 4–6 weeks of topics","List key vocabulary, command words and common response structures","Collect one baseline subject task"],
+  resources:["Upcoming lesson vocabulary","Model subject responses","Diagrams/dual-coded examples","Subject-specific sentence frames","Authentic textbook/exam/task extracts"],
+  sessionRoutine:["4 min retrieval of previous subject language","5 min pre-teach upcoming language","8 min apply to actual subject content","5 min rehearse likely response structure","3 min record what transferred in class"],
+  weeklyPlan:[
+   {week:1,focus:"Map language demand",activities:["Analyse baseline task","Identify vocabulary/text/response barrier","Agree 8–12 priority items"],evidence:"Baseline language-demand profile."},
+   {week:2,focus:"Key vocabulary",activities:["Teach meaning/morphology/examples","Use in oral subject explanations"],evidence:"Delayed vocabulary retrieval."},
+   {week:3,focus:"Subject sentence patterns",activities:["Model high-value patterns","Sentence combine/transform","Apply to current topic"],evidence:"Accuracy of target pattern in subject response."},
+   {week:4,focus:"Reading/interpretation",activities:["Read short authentic subject text/diagram","Identify how information is organised","Answer subject questions"],evidence:"Subject reading score."},
+   {week:5,focus:"Extended response",activities:["Plan then write/speak authentic answer","Reduce scaffold","Use teacher success criteria"],evidence:"Baseline vs current response rubric."},
+   {week:6,focus:"Transfer/review",activities:["Collect classwork and teacher feedback","Repeat matched subject task","Agree whether support can reduce/change focus"],evidence:"Teacher-confirmed transfer."}
+  ],
+  measures:[
+   {name:"Subject-language rubric",method:"Rate vocabulary, comprehension, response structure and independence 0–5.",target:"Improvement in identified barrier."},
+   {name:"Teacher feedback",method:"Brief fortnightly subject-teacher check.",target:"Reduced language-related prompting."},
+   {name:"Independent classwork",method:"Compare normal subject task at baseline/final.",target:"Improved access without lowering subject demand."}
+  ],
+  fidelity:["Plan from upcoming curriculum","Work with subject teacher language","Keep subject content age-appropriate","Do not replace subject teaching with generic ESL worksheets"],
+  successCriteria:["Pupil uses key subject language more independently","Classroom access improves in the named subject","Scaffolds can be reduced or made more precise"]
+ },
+ "literacy-foundations":{
+  rationale:"Provides targeted foundational literacy support only when assessment indicates a genuine literacy need, while avoiding the assumption that being new to English equals low literacy.",
+  entryCriteria:["Evidence indicates difficulty with foundational reading/writing processes beyond unfamiliar English vocabulary alone","Home-language literacy/context has been explored where feasible","Age-appropriate assessment suggests a specific decoding/encoding need"],
+  beforeStarting:["Record first-language literacy information where available","Use appropriate baseline for letter-sound/decoding/spelling target","Document why need is thought to extend beyond EAL acquisition","Consider SEN/literacy specialist advice where concerns persist"],
+  resources:["Age-respectful decoding materials","Sound/grapheme cards","Word-building tiles","Cumulative controlled text","Spelling/encoding record"],
+  sessionRoutine:["3 min cumulative retrieval","5 min explicit target pattern","7 min word reading/building","4 min controlled text application","1 min record mastery/errors"],
+  weeklyPlan:[
+   {week:1,focus:"Diagnostic baseline and target selection",activities:["Identify known/unknown correspondences or spelling patterns","Select small teaching set","Avoid broad assumptions from accent/oral English"],evidence:"Specific baseline error profile."},
+   {week:2,focus:"Explicit pattern teaching",activities:["Teach small set with blending/segmenting","Immediate guided practice","Cumulative retrieval"],evidence:"Accuracy on taught set."},
+   {week:3,focus:"Cumulative application",activities:["Mix new/previous items","Apply in age-respectful words/text","Track error pattern"],evidence:"Cumulative accuracy."},
+   {week:4,focus:"Automaticity",activities:["Short repeated retrieval","Move from isolated item to sentence/text","Check meaning alongside decoding"],evidence:"Accuracy and effort rating."},
+   {week:5,focus:"Transfer to curriculum literacy",activities:["Apply target to subject vocabulary/reading where appropriate","Coordinate with English/literacy staff"],evidence:"Transfer examples."},
+   {week:6,focus:"Midpoint diagnostic",activities:["Repeat matched assessment","Decide continue/adapt/refer for wider assessment"],evidence:"Midpoint comparison."},
+   {week:7,focus:"Consolidation or adjusted target",activities:["Continue only on demonstrated need","Use cumulative practice","Record independent application"],evidence:"Stability of taught skill."},
+   {week:8,focus:"Final review",activities:["Repeat baseline measure","Review first-language/context evidence","Document next professional step clearly"],evidence:"Baseline/final profile and recommendation."}
+  ],
+  measures:[
+   {name:"Target literacy accuracy",method:"Use a specific matched decoding/encoding measure weekly.",target:"Consistent improvement on taught and transfer items."},
+   {name:"Generalisation",method:"Sample unfamiliar words/text containing taught pattern.",target:"Evidence skill transfers beyond rehearsed list."},
+   {name:"Wider evidence",method:"Compare intervention data with home-language literacy and classroom evidence.",target:"Next steps based on multiple sources, not EAL status alone."}
+  ],
+  fidelity:["Do not equate EAL with dyslexia/low literacy","Use age-respectful resources","Teach cumulatively and explicitly","Seek specialist assessment when progress remains unexpectedly limited despite high-quality support"],
+  successCriteria:["Specific foundational skill improves on matched measures","Learning generalises to unfamiliar material","Review clearly distinguishes ongoing EAL need from possible wider literacy need"]
+ }
+};
+function interventionPlanByTemplate(id){
+ var t=interventionTemplateById(id),p=interventionPlanLibrary[id]||null;
+ if(!t)return null;
+ return Object.assign({name:t.name,focus:t.focus,frequency:t.frequency,weeks:t.weeks,strategies:t.strategies||[],baseline:t.baseline,target:t.target},p||{})
+}
+function interventionPlanMeasureHtml(m){
+ return '<div class="priority"><div><b>'+esc(m.name)+'</b><span><b>How:</b> '+esc(m.method)+'<br><b>Success:</b> '+esc(m.target)+'</span></div></div>'
+}
+function interventionPlanHtml(templateId){
+ var p=interventionPlanByTemplate(templateId);if(!p)return '<div class="empty">No detailed plan is available for this custom intervention.</div>';
+ var h='<div class="notice privacy"><b>Purpose:</b> '+esc(p.rationale||p.focus)+'</div>';
+ h+='<div class="grid two" style="margin-top:12px"><div class="card"><h3>Who this is for</h3><ul class="small">'+(p.entryCriteria||[]).map(function(x){return '<li>'+esc(x)+'</li>'}).join("")+'</ul></div><div class="card"><h3>Before starting</h3><ul class="small">'+(p.beforeStarting||[]).map(function(x){return '<li>'+esc(x)+'</li>'}).join("")+'</ul></div></div>';
+ h+='<div class="grid two" style="margin-top:12px"><div class="card"><h3>Recommended resources</h3><ul class="small">'+(p.resources||[]).map(function(x){return '<li>'+esc(x)+'</li>'}).join("")+'</ul></div><div class="card"><h3>Session routine</h3><ol class="small">'+(p.sessionRoutine||[]).map(function(x){return '<li>'+esc(x)+'</li>'}).join("")+'</ol></div></div>';
+ h+='<div class="card" style="margin-top:12px"><div class="section-title"><h3>Week-by-week implementation</h3><span class="small muted">'+esc(p.frequency||"")+' · '+esc(p.weeks||"")+' weeks</span></div>';
+ (p.weeklyPlan||[]).forEach(function(w){h+='<div class="card" style="margin:8px 0"><div class="section-title"><h3>Week '+w.week+' · '+esc(w.focus)+'</h3></div><ul class="small">'+(w.activities||[]).map(function(x){return '<li>'+esc(x)+'</li>'}).join("")+'</ul><div class="notice"><b>Evidence to record:</b> '+esc(w.evidence||"")+'</div></div>'});
+ h+='</div><div class="card" style="margin-top:12px"><h3>Progress & effectiveness measures</h3>'+(p.measures||[]).map(interventionPlanMeasureHtml).join("")+'</div>';
+ h+='<div class="grid two" style="margin-top:12px"><div class="card"><h3>Implementation fidelity</h3><ul class="small">'+(p.fidelity||[]).map(function(x){return '<li>'+esc(x)+'</li>'}).join("")+'</ul></div><div class="card"><h3>Success criteria</h3><ul class="small">'+(p.successCriteria||[]).map(function(x){return '<li>'+esc(x)+'</li>'}).join("")+'</ul></div></div>';
+ h+='<div class="notice" style="margin-top:12px">Review progress against the planned measures, classroom evidence and pupil voice. Improvement alongside an intervention is useful evidence but does not by itself prove causation.</div>';
+ return h
+}
+window.openInterventionPlan=function(templateId){
+ var p=interventionPlanByTemplate(templateId);if(!p)return toast("No detailed plan for this custom intervention");
+ document.getElementById("modalTitle").textContent=p.name+" — implementation plan";
+ document.getElementById("modalBody").innerHTML=interventionPlanHtml(templateId);
+ document.getElementById("modalFoot").innerHTML='<button class="btn" onclick="printInterventionPlan(\''+templateId+'\')">Print plan</button><button class="btn primary" onclick="closeModal();openIntervention(null,\''+templateId+'\')">Use this plan</button><button class="btn" onclick="closeModal()">Close</button>';
+ document.getElementById("modal").showModal()
+}
+window.printInterventionPlan=function(templateId){
+ var p=interventionPlanByTemplate(templateId);if(!p)return;var w=window.open("","_blank");if(!w)return toast("Allow pop-ups to print the plan");
+ w.document.write('<html><head><title>'+esc(p.name)+'</title><style>body{font-family:Arial,sans-serif;margin:28px;color:#222;line-height:1.45}h1,h2,h3{color:#275d4b}.week{border:1px solid #ccc;padding:10px;margin:8px 0}.box{border:1px solid #ddd;padding:10px;margin:10px 0}li{margin:4px 0}</style></head><body><h1>'+esc(p.name)+'</h1><p><b>Focus:</b> '+esc(p.focus)+'</p><p><b>Frequency:</b> '+esc(p.frequency)+' · <b>Duration:</b> '+esc(p.weeks)+' weeks</p><div class="box"><b>Rationale:</b> '+esc(p.rationale||"")+'</div><h2>Entry criteria</h2><ul>'+(p.entryCriteria||[]).map(function(x){return "<li>"+esc(x)+"</li>"}).join("")+'</ul><h2>Before starting</h2><ul>'+(p.beforeStarting||[]).map(function(x){return "<li>"+esc(x)+"</li>"}).join("")+'</ul><h2>Session routine</h2><ol>'+(p.sessionRoutine||[]).map(function(x){return "<li>"+esc(x)+"</li>"}).join("")+'</ol><h2>Week-by-week plan</h2>'+(p.weeklyPlan||[]).map(function(x){return '<div class="week"><h3>Week '+x.week+' · '+esc(x.focus)+'</h3><ul>'+x.activities.map(function(a){return "<li>"+esc(a)+"</li>"}).join("")+'</ul><p><b>Evidence:</b> '+esc(x.evidence)+'</p></div>'}).join("")+'<h2>Progress measures</h2>'+(p.measures||[]).map(function(m){return '<div class="box"><b>'+esc(m.name)+'</b><br>'+esc(m.method)+'<br><b>Success:</b> '+esc(m.target)+'</div>'}).join("")+'<h2>Fidelity checks</h2><ul>'+(p.fidelity||[]).map(function(x){return "<li>"+esc(x)+"</li>"}).join("")+'</ul><h2>Success criteria</h2><ul>'+(p.successCriteria||[]).map(function(x){return "<li>"+esc(x)+"</li>"}).join("")+'</ul><script>window.onload=function(){window.print()}<\/script></body></html>');w.document.close()
+}
+
 function interventionTemplateById(id){return interventionTemplates.find(function(x){return x.id===id})}
 window.fillInterventionTemplate=function(id){
  var t=interventionTemplateById(id);if(!t)return;
@@ -510,10 +821,11 @@ window.openIntervention=function(id,templateId){
 }
 function renderInterventionLibrary(){
  var cat=ui.interventionCategory||"All",cats=["All"].concat(Array.from(new Set(interventionTemplates.map(function(t){return t.category}))).sort());
- var h=pageHead("Intervention Library","Ready-to-use EAL intervention templates with editable baselines, targets and strategies","");
+ var h=pageHead("Intervention Library","Detailed implementation plans with session structure, weekly sequence and effectiveness measures","");
+ h+='<div class="notice privacy" style="margin-bottom:12px">Every intervention includes entry criteria, baseline checks, session routine, week-by-week activities, fidelity checks, progress measures and success criteria. Staff should adapt the plan to the pupil and curriculum context.</div>';
  h+='<div class="filters"><select onchange="ui.interventionCategory=this.value;render()">'+cats.map(function(x){return '<option '+(cat===x?"selected":"")+'>'+esc(x)+'</option>'}).join("")+'</select></div>';
  var list=interventionTemplates.filter(function(t){return cat==="All"||t.category===cat});
- h+='<div class="grid three">'+list.map(function(t){return '<div class="card"><div class="section-title"><h3>'+esc(t.name)+'</h3>'+badge(t.category,"brand")+'</div><p class="small"><b>Focus:</b> '+esc(t.focus)+'</p><p class="small muted"><b>Typical frequency:</b> '+esc(t.frequency)+' · '+t.weeks+' weeks</p><p class="small"><b>Suggested target:</b> '+esc(t.target)+'</p>'+(roleCanEdit()?'<button class="btn primary" onclick="openIntervention(null,\''+t.id+'\')">Use template</button>':"")+'</div>'}).join("")+'</div>';
+ h+='<div class="grid three">'+list.map(function(t){var p=interventionPlanByTemplate(t.id);return '<div class="card"><div class="section-title"><h3>'+esc(t.name)+'</h3>'+badge(t.category,"brand")+'</div><p class="small"><b>Focus:</b> '+esc(t.focus)+'</p><p class="small muted"><b>Typical frequency:</b> '+esc(t.frequency)+' · '+t.weeks+' weeks</p><p class="small"><b>Suggested target:</b> '+esc(t.target)+'</p><p class="small muted">'+((p&&p.weeklyPlan)?p.weeklyPlan.length:0)+' planned weekly stages · '+((p&&p.measures)?p.measures.length:0)+' effectiveness measures</p><div class="actions"><button class="btn" onclick="openInterventionPlan(\''+t.id+'\')">View full plan</button>'+(roleCanEdit()?'<button class="btn primary" onclick="openIntervention(null,\''+t.id+'\')">Start</button>':"")+'</div></div>'}).join("")+'</div>';
  return h
 }
 
