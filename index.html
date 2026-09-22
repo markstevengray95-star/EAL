@@ -389,7 +389,7 @@ function renderStudent(){
  var tabs=[["overview","Overview"],["assessment","Assessment"],["support","Support"],["evidence","Evidence & Voice"],["review","Review & Passport"]];
  h+='<div class="tabs">'+tabs.map(function(t){return '<button class="tab '+(ui.studentTab===t[0]?"active":"")+'" onclick="ui.studentTab=\''+t[0]+'\';render()">'+t[1]+'</button>'}).join("")+'</div>';
  if(ui.studentTab==="overview")h+=studentOverview(s);
- if(ui.studentTab==="assessment")h+=studentEalEnhanced(s)+studentReading(s);
+ if(ui.studentTab==="assessment")h+=studentEalEnhanced(s)+studentReading(s)+studentTestHistoryCard(s);
  if(ui.studentTab==="support")h+=studentLearning(s)+studentTargetsEnhanced(s)+studentInterventionsEnhanced(s);
  if(ui.studentTab==="evidence")h+=studentObservations(s)+studentSubjects(s)+studentVoiceEnhanced(s)+studentFamily(s)+studentEvidenceEnhanced(s);
  if(ui.studentTab==="review")h+=studentReviews(s)+studentPassport(s);
@@ -1951,6 +1951,31 @@ window.removeLicensedTest=function(id){
  var inUse=(state.testSessions||[]).some(function(s){return s.testId===id&&s.status!=="Cancelled"});if(inUse)return toast("This test is linked to an existing test session");
  if(!confirm("Remove this imported test from the app?"))return;
  state.licensedTests=(state.licensedTests||[]).filter(function(t){return t.id!==id});save("Removed imported licensed test");openLicensedTestLibrary()
+}
+
+
+function sessionSectionWeakest(session,test){
+ var rows=testSectionBreakdown(session,test).filter(function(r){return r.max>0}),sorted=rows.slice().sort(function(a,b){return (a.score/a.max)-(b.score/b.max)});
+ return sorted[0]||null
+}
+function sectionNextStep(name){
+ var n=String(name||"").toLowerCase();
+ if(n.indexOf("listening")>-1)return "Practise extracting key details from spoken classroom instructions and short explanations.";
+ if(n.indexOf("reading")>-1)return "Practise identifying main ideas, supporting detail and vocabulary meaning from context.";
+ if(n.indexOf("academic")>-1||n.indexOf("language")>-1)return "Revisit command words, formal sentence structures and academic connectives in subject contexts.";
+ if(n.indexOf("writing")>-1)return "Use model paragraphs and feedback focused on organisation, academic vocabulary and grammatical accuracy.";
+ if(n.indexOf("speaking")>-1)return "Build extended spoken responses using reasons, examples and follow-up questions.";
+ return "Review the lowest-scoring section and collect further classroom evidence before setting a target."
+}
+function studentTestHistoryCard(s){
+ var sessions=(state.testSessions||[]).filter(function(x){return x.studentId===s.id&&(x.status==="Completed"||x.status==="Submitted")}).sort(function(a,b){return String(b.submittedAt||b.createdAt).localeCompare(String(a.submittedAt||a.createdAt))});
+ var h='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Student-completed test history</h3><span class="small muted">'+sessions.length+' attempt(s)</span></div>';
+ if(!sessions.length)return h+'<div class="empty">No student-completed tests recorded yet.</div></div>';
+ h+='<div class="table-wrap"><table><thead><tr><th>Date</th><th>Test</th><th>Status</th><th>Score</th><th>Lowest section / next step</th><th></th></tr></thead><tbody>';
+ sessions.forEach(function(x){var test=testById(x.testId),score=x.finalScore!=null?x.finalScore:x.objectiveScore,max=x.finalMax!=null?x.finalMax:x.objectiveMax,pct=score!=null&&max?Math.round(score/max*100):null,weak=test?sessionSectionWeakest(x,test):null;h+='<tr><td>'+dateText(String(x.submittedAt||x.createdAt).slice(0,10))+'</td><td>'+esc(test?test.name:"Removed test")+'</td><td>'+badge(x.status,x.status==="Completed"?"ok":"warn")+'</td><td>'+(pct==null?"—":score+"/"+max+" · "+pct+"%")+'</td><td>'+(weak?'<b>'+esc(weak.name)+'</b><br><span class="small muted">'+esc(sectionNextStep(weak.name))+'</span>':"Awaiting full marking")+'</td><td><div class="actions"><button class="btn" onclick="openTestResponseReview(\''+x.id+'\')">Review</button>'+(x.status==="Completed"?'<button class="btn" onclick="printStudentTestResult(\''+x.id+'\')">Print</button>':"")+'</div></td></tr>'});
+ h+='</tbody></table></div>';
+ if(sessions.filter(function(x){return x.finalScore!=null}).length>=2){var done=sessions.filter(function(x){return x.finalScore!=null}).slice().reverse(),first=done[0],last=done[done.length-1],fp=Math.round(first.finalScore/first.finalMax*100),lp=Math.round(last.finalScore/last.finalMax*100),d=lp-fp;h+='<div class="notice" style="margin-top:10px"><b>Test-score change:</b> '+(d>0?"+":"")+d+' percentage points between the earliest and latest completed test. Treat this as one source of evidence, not a stand-alone proficiency judgement.</div>'}
+ return h+'</div>'
 }
 
 function render(){
