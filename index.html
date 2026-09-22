@@ -113,7 +113,7 @@ function dateText(v){if(!v)return"—";return new Date(v+"T12:00:00").toLocaleDa
 function roleCanEdit(){return ui.role==="Administrator"||ui.role==="EAL Coordinator"||ui.role==="Teacher"}
 function roleCanAdmin(){return ui.role==="Administrator"||ui.role==="EAL Coordinator"}
 function toast(msg){var t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");setTimeout(function(){t.classList.remove("show")},2200)}
-function save(action){localStorage.setItem(STORAGE,JSON.stringify(state));if(action){state.audit.unshift({id:uid("audit"),date:new Date().toISOString(),user:ui.role,action:action});state.audit=state.audit.slice(0,200);localStorage.setItem(STORAGE,JSON.stringify(state))}scheduleCentralSync();scheduleDirectDriveSync()}
+function save(action){if(action)markSyncPending(action);localStorage.setItem(STORAGE,JSON.stringify(state));if(action){state.audit.unshift({id:uid("audit"),date:new Date().toISOString(),user:ui.role,action:action});state.audit=state.audit.slice(0,200);localStorage.setItem(STORAGE,JSON.stringify(state))}scheduleCentralSync();scheduleDirectDriveSync()}
 function studentById(id){return state.students.find(function(s){return s.id===id})}
 function latest(arr){return (arr||[]).slice().sort(function(a,b){return String(b.date||b.reviewDate||"").localeCompare(String(a.date||a.reviewDate||""))})[0]}
 function levelFromSkills(obj){var keys=coreSkills.filter(function(k){return obj&&obj[k]!=null});if(!keys.length)keys=skills;var sum=keys.reduce(function(a,k){return a+(Number(obj&&obj[k])||1)},0);var avg=sum/keys.length;return levels[Math.max(0,Math.min(4,Math.round(avg)-1))]}
@@ -1287,6 +1287,7 @@ async function centralSave(silent){
   cfg.revision=Number(result.revision||cfg.revision||0);
   cfg.lastSync=result.updatedAt||new Date().toISOString();
   cfg.syncConflict=false;cfg.remoteRevision=0;cfg.conflictUpdatedAt="";
+  clearSyncQueue("Central database");
   localStorage.setItem(STORAGE,JSON.stringify(state));
   if(!silent)toast("Central data synced · revision "+cfg.revision);return true
  }catch(e){
@@ -1509,6 +1510,7 @@ function renderAdminHub(){
  hubCard("Data & bulk tools","Bulk assessment, duplicate checking, import history and reassessment planning.","datatools")+
  hubCard("Archive","Find and restore archived pupil records.","archive")+
  hubCard("Settings & privacy","Branding, intervals, privacy and local backups.","settings")+
+ hubCard("Sync status","See local changes waiting for Drive or central sync.","syncstatus")+
  hubCard("Advanced integrations","Optional central database, staff authentication and MIS sync. Ignore this if Google Drive backup is enough.","integrations")+
  '</div>';return h
 }
@@ -1591,7 +1593,7 @@ window.directDriveBackup=async function(silent){
   var folderId=await ensureDirectDriveFolder(),fileId=d.backupFileId||await createDirectDriveBackupFile(folderId),payload=JSON.stringify(directDriveCleanState(),null,2);
   await directDriveFetch("https://www.googleapis.com/upload/drive/v3/files/"+encodeURIComponent(fileId)+"?uploadType=media",{method:"PATCH",headers:{"Content-Type":"application/json"},body:payload});
   await createDriveHistorySnapshot(payload);
-  d.lastSync=new Date().toISOString();d.status="Connected";localStorage.setItem(STORAGE,JSON.stringify(state));
+  d.lastSync=new Date().toISOString();d.status="Connected";clearSyncQueue("Google Drive");localStorage.setItem(STORAGE,JSON.stringify(state));
   if(!silent){render();toast("Backed up to Google Drive")}return true
  }catch(e){if(!silent)toast(e&&e.message?e.message:"Drive backup failed");return false}
 }
@@ -2867,6 +2869,29 @@ window.finishSpeakingRecording=async function(){
  }catch(e){if(el)el.textContent="Save failed";toast("Could not save speaking recording")}
 }
 
+
+function remoteConfigured(){
+ var d=state&&state.directDrive||{},s=state&&state.integrations&&state.integrations.supabase||{};
+ return !!(d.clientId||s.projectUrl)
+}
+function markSyncPending(action){
+ if(!state||!remoteConfigured())return;
+ state.syncQueue=state.syncQueue||[];
+ state.syncQueue.push({id:uid("sync"),date:new Date().toISOString(),action:action||"Local change"});
+ state.syncQueue=state.syncQueue.slice(-100)
+}
+function clearSyncQueue(source){
+ state.syncQueue=[];state.lastSuccessfulSync={date:new Date().toISOString(),source:source};localStorage.setItem(STORAGE,JSON.stringify(state))
+}
+function renderSyncStatus(){
+ var q=state.syncQueue||[],d=state.directDrive||{},s=(state.integrations||{}).supabase||{},last=state.lastSuccessfulSync||{};
+ var h=pageHead("Sync Status","Local edits are saved first; configured remote services catch up when connected","");
+ h+='<div class="grid four"><div class="card kpi"><small>Pending changes</small><strong>'+q.length+'</strong><span>Awaiting remote sync</span></div><div class="card kpi"><small>Google Drive</small><strong>'+esc(d.status||"Not configured")+'</strong><span>'+(d.lastSync?"Last "+new Date(d.lastSync).toLocaleString("en-GB"):"No backup yet")+'</span></div><div class="card kpi"><small>Central data</small><strong>'+esc(s.status||"Not configured")+'</strong><span>'+(s.lastSync?new Date(s.lastSync).toLocaleString("en-GB"):"No sync yet")+'</span></div><div class="card kpi"><small>Last confirmed sync</small><strong>'+esc(last.source||"—")+'</strong><span>'+(last.date?new Date(last.date).toLocaleString("en-GB"):"None yet")+'</span></div></div>';
+ h+='<div class="notice privacy" style="margin-top:14px">The app stores changes in this browser before attempting remote sync. Losing internet does not discard the current browser data. Pending items clear after a configured Drive or central-data sync succeeds.</div>';
+ if(q.length){h+='<div class="card" style="margin-top:14px"><h3>Latest pending changes</h3>';q.slice(-20).reverse().forEach(function(x){h+='<div class="priority"><div><b>'+new Date(x.date).toLocaleString("en-GB")+'</b><span>'+esc(x.action)+'</span></div></div>'});h+='</div>'}
+ return h
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
@@ -2917,6 +2942,7 @@ function render(){
  else if(ui.view==="integrations")html=renderIntegrations();
  else if(ui.view==="archive")html=renderArchive();
  else if(ui.view==="settings")html=renderSettingsEnhanced();
+ else if(ui.view==="syncstatus")html=renderSyncStatus();
  c.innerHTML=html;
 }
 
