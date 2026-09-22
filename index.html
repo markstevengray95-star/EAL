@@ -1838,6 +1838,72 @@ window.openCreateStudentTest=function(){
  })
 }
 
+
+function testScoreRange(percent){
+ percent=Number(percent||0);
+ if(percent>=85)return "Very strong test performance";
+ if(percent>=70)return "Strong test performance";
+ if(percent>=55)return "Developing test performance";
+ if(percent>=40)return "Emerging test performance";
+ return "Early-stage test performance"
+}
+function testSectionBreakdown(session,test){
+ var rows=[];
+ (test.sections||[]).forEach(function(sec){
+  if(["listening","reading","objective"].indexOf(sec.kind)>-1){
+   var score=0,max=0;(sec.questions||[]).forEach(function(q,i){var m=Number(q.marks||1);max+=m;if(Number((session.answers||{})[sec.id+"_"+i])===Number(q.a))score+=m});
+   rows.push({name:sec.title,score:score,max:max,type:"Auto-marked"})
+  }else if(sec.kind==="writing")rows.push({name:sec.title,score:Number(session.writingScore||0),max:Number(sec.maxMarks||20),type:"Teacher-marked"});
+  else if(sec.kind==="speaking")rows.push({name:sec.title,score:Number(session.speakingScore||0),max:Number(sec.maxMarks||20),type:"Teacher-marked"})
+ });
+ return rows
+}
+window.openTestResponseReview=function(id){
+ var session=(state.testSessions||[]).find(function(x){return x.id===id}),test=session&&testById(session.testId),student=session&&studentById(session.studentId);if(!session||!test||!student)return;
+ var html='<div class="notice"><b>'+esc(student.name)+'</b> · '+esc(test.name)+'</div>';
+ (test.sections||[]).forEach(function(sec){
+  html+='<div class="card" style="margin-top:10px"><h3>'+esc(sec.title)+'</h3>';
+  if(["listening","reading","objective"].indexOf(sec.kind)>-1){
+   (sec.questions||[]).forEach(function(q,i){
+    var key=sec.id+"_"+i,ans=(session.answers||{})[key],correct=Number(ans)===Number(q.a);
+    html+='<div class="priority"><div><b>'+esc(q.q)+'</b><span>Student: '+(ans===undefined?"No answer":esc((q.o||[])[ans]))+' · Correct: '+esc((q.o||[])[q.a])+'</span></div>'+badge(correct?"Correct":"Incorrect",correct?"ok":"danger")+'</div>'
+   })
+  }else if(sec.kind==="writing"){
+   html+='<div class="notice">'+esc(session.writingResponse||"No writing response submitted")+'</div>';
+   if(session.writingMarks)html+='<p class="small"><b>Writing rubric:</b> Task '+session.writingMarks.content+'/5 · Organisation '+session.writingMarks.organisation+'/5 · Vocabulary '+session.writingMarks.vocabulary+'/5 · Grammar '+session.writingMarks.grammar+'/5</p>'
+  }else if(sec.kind==="speaking"){
+   html+='<p class="small muted">'+esc(sec.prompt||"")+'</p>';
+   if(session.speakingMarks)html+='<p class="small"><b>Speaking rubric:</b> Interaction '+session.speakingMarks.interaction+'/5 · Fluency '+session.speakingMarks.fluency+'/5 · Vocabulary '+session.speakingMarks.vocabulary+'/5 · Accuracy '+session.speakingMarks.accuracy+'/5</p>'
+  }
+  html+='</div>'
+ });
+ modal("Test response review",html,"Close",function(){closeModal()})
+}
+window.printStudentTestResult=function(id){
+ var session=(state.testSessions||[]).find(function(x){return x.id===id}),test=session&&testById(session.testId),student=session&&studentById(session.studentId);if(!session||!test||!student)return;
+ var rows=testSectionBreakdown(session,test),score=session.finalScore!=null?session.finalScore:session.objectiveScore,max=session.finalMax!=null?session.finalMax:session.objectiveMax,pct=max?Math.round(score/max*100):0,w=window.open("","_blank");if(!w)return toast("Allow pop-ups to print the result");
+ var table=rows.map(function(r){return '<tr><td>'+esc(r.name)+'</td><td>'+esc(r.type)+'</td><td>'+r.score+'/'+r.max+'</td><td>'+Math.round((r.score/Math.max(1,r.max))*100)+'%</td></tr>'}).join("");
+ w.document.write('<html><head><title>EAL Test Result</title><style>body{font-family:Arial,sans-serif;margin:32px;color:#222}h1,h2{color:#275d4b}.box{border:1px solid #ddd;padding:14px;margin:14px 0}table{width:100%;border-collapse:collapse}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left;font-size:12px}</style></head><body><h1>'+esc(student.name)+' — EAL Test Result</h1><p>'+esc(test.name)+' · '+dateText((session.submittedAt||today()).slice(0,10))+'</p><div class="box"><b>Total:</b> '+score+'/'+max+' · '+pct+'%<br><b>School-test score range:</b> '+esc(testScoreRange(pct))+'</div><table><thead><tr><th>Section</th><th>Marking</th><th>Score</th><th>%</th></tr></thead><tbody>'+table+'</tbody></table><p style="font-size:12px;margin-top:18px">This is a school-built assessment score, not a nationally standardised or commercial-test score. Interpret it alongside the pupil’s wider EAL profile, classroom evidence and reading data.</p><script>window.onload=function(){window.print()}<\/script></body></html>');
+ w.document.close()
+}
+function renderTestSessionsPro(){
+ var sessions=(state.testSessions||[]).slice().sort(function(a,b){return String(b.createdAt).localeCompare(String(a.createdAt))});
+ var h=pageHead("Student Test Sessions","Create codes, monitor attempts, review answers and print results",roleCanEdit()?'<button class="btn primary" onclick="openCreateStudentTest()">+ New test session</button>':"");
+ h+='<div class="notice privacy" style="margin-bottom:12px">Score ranges are local school-test performance ranges only. They are not standardised EAL proficiency levels.</div>';
+ if(!sessions.length)return h+'<div class="empty">No student test sessions yet.</div>';
+ h+='<div class="table-wrap"><table><thead><tr><th>Code</th><th>Student</th><th>Test</th><th>Status</th><th>Access</th><th>Score</th><th>Actions</th></tr></thead><tbody>';
+ sessions.forEach(function(s){
+  var st=studentById(s.studentId),test=testById(s.testId),expiry=new Date(new Date(s.createdAt).getTime()+Number(s.codeExpiryHours||24)*3600000),expired=s.status==="Ready"&&expiry<new Date(),score=s.finalScore!=null?s.finalScore:s.objectiveScore,max=s.finalMax!=null?s.finalMax:s.objectiveMax,pct=score!=null&&max?Math.round(score/max*100):null;
+  h+='<tr><td><b style="font-size:17px;letter-spacing:2px">'+esc(s.code)+'</b></td><td>'+esc(st?st.name:"Unknown")+'</td><td>'+esc(test?test.name:"Removed test")+'</td><td>'+badge(expired?"Expired":s.status,expired?"danger":s.status==="Completed"?"ok":s.status==="Submitted"?"warn":"brand")+'</td><td class="small">'+(s.untimed?"Untimed":sessionDurationMinutes(s,test)+" min")+' · '+Number(s.listeningLimit||2)+' play(s)'+(s.extraTimePercent?" · +"+s.extraTimePercent+"%":"")+'</td><td>'+(pct==null?"—":score+"/"+max+" · "+pct+"%<br><span class=\"small muted\">"+esc(testScoreRange(pct))+"</span>")+'</td><td><div class="actions">';
+  if(s.status==="Submitted"||s.status==="Completed"){
+   h+='<button class="btn" onclick="openMarkStudentTest(\''+s.id+'\')">Mark</button><button class="btn" onclick="openTestResponseReview(\''+s.id+'\')">Review</button>';
+   if(s.status==="Completed")h+='<button class="btn" onclick="printStudentTestResult(\''+s.id+'\')">Print</button>';
+  }else h+='<button class="btn danger" onclick="cancelTestSession(\''+s.id+'\')">Cancel</button>';
+  h+='</div></td></tr>'
+ });
+ return h+'</tbody></table></div>'
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
@@ -1845,7 +1911,7 @@ function render(){
  else if(ui.view==="students")html=renderStudentsEnhanced();
  else if(ui.view==="assessmenthub")html=renderAssessmentHub();
  else if(ui.view==="studenttest")html=renderStudentTestPortalPro();
- else if(ui.view==="testsessions")html=renderTestSessions();
+ else if(ui.view==="testsessions")html=renderTestSessionsPro();
  else if(ui.view==="supporthub")html=renderSupportHub();
  else if(ui.view==="reviewhub")html=renderReviewHub();
  else if(ui.view==="adminhub")html=renderAdminHub();
