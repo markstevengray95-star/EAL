@@ -61,31 +61,11 @@ dialog{width:min(980px,96vw);border:0;border-radius:16px;padding:0;box-shadow:0 
   <div class="nav" id="nav">
     <button data-view="dashboard" class="active">⌂ Dashboard</button>
     <button data-view="students">◎ Students</button>
-    <button data-view="reading">▤ Reading Ages</button>
-    <button data-view="assessments">◫ EAL Assessments</button>
-    <button data-view="interventions">◇ Interventions</button>
-    <button data-view="observations">◉ Observations</button>
-    <button data-view="reviews">✓ Reviews</button>
-    <button data-view="reviewmeeting">☷ Review Meeting</button>
-    <button data-view="strategies">✧ Strategy Library</button>
-    <button data-view="provision">▥ Provision Map</button>
-    <button data-view="teacher">▣ Teacher / Class View</button>
-    <button data-view="calendar">◷ Calendar & Reminders</button>
-    <button data-view="tasks">☑ Staff Tasks</button>
-    <button data-view="impact">↗ Intervention Impact</button>
-    <button data-view="sessions">◴ Intervention Sessions</button>
-    <button data-view="supportplan">▤ Support Timetable</button>
-    <button data-view="feedback">✉ Teacher Feedback</button>
-    <button data-view="sixweeks">6W First 6 Weeks</button>
-    <button data-view="ealtest">✦ EAL Test</button>
-    <button data-view="cohorts">▦ Cohorts & Heatmap</button>
-    <button data-view="reports">▧ Reports</button>
-    <button data-view="slt">◩ SLT / Inspection</button>
-    <button data-view="tools">⚒ Tools & Rollover</button>
-    <button data-view="integrations">⇄ Integration Centre</button>
-    <div class="sep"></div>
-    <button data-view="archive">⌁ Archive</button>
-    <button data-view="settings">⚙ Settings & Privacy</button>
+    <button data-view="assessmenthub">✦ Assessment Centre</button>
+    <button data-view="supporthub">◇ Support & Provision</button>
+    <button data-view="reviewhub">✓ Reviews & Reports</button>
+    <button data-view="drive">▣ Google Drive</button>
+    <button data-view="adminhub">⚙ More & Settings</button>
   </div>
   <div class="aside-foot">Demo mode stores information only in this browser. Use fictional data until a school-approved secure backend is connected.</div>
 </aside>
@@ -110,6 +90,7 @@ dialog{width:min(980px,96vw);border:0;border-radius:16px;padding:0;box-shadow:0 
 "use strict";
 var STORAGE="ealProgressHub.v1";
 var skills=["listening","speaking","reading","writing","vocabulary","grammar","academic","classroom"];
+var coreSkills=["listening","speaking","reading","writing"];
 var skillLabels={listening:"Listening",speaking:"Speaking",reading:"Reading",writing:"Writing",vocabulary:"Vocabulary",grammar:"Grammar",academic:"Academic language",classroom:"Classroom communication"};
 var levels=["New to English","Early Acquisition","Developing Competence","Competent","Fluent"];
 var state;
@@ -132,7 +113,7 @@ function toast(msg){var t=document.getElementById("toast");t.textContent=msg;t.c
 function save(action){localStorage.setItem(STORAGE,JSON.stringify(state));if(action){state.audit.unshift({id:uid("audit"),date:new Date().toISOString(),user:ui.role,action:action});state.audit=state.audit.slice(0,200);localStorage.setItem(STORAGE,JSON.stringify(state))}scheduleCentralSync()}
 function studentById(id){return state.students.find(function(s){return s.id===id})}
 function latest(arr){return (arr||[]).slice().sort(function(a,b){return String(b.date||b.reviewDate||"").localeCompare(String(a.date||a.reviewDate||""))})[0]}
-function levelFromSkills(obj){var sum=skills.reduce(function(a,k){return a+(Number(obj&&obj[k])||1)},0);var avg=sum/skills.length;return levels[Math.max(0,Math.min(4,Math.round(avg)-1))]}
+function levelFromSkills(obj){var keys=coreSkills.filter(function(k){return obj&&obj[k]!=null});if(!keys.length)keys=skills;var sum=keys.reduce(function(a,k){return a+(Number(obj&&obj[k])||1)},0);var avg=sum/keys.length;return levels[Math.max(0,Math.min(4,Math.round(avg)-1))]}
 function readingLatest(s){return latest(s.readingAssessments||[])}
 function readingGap(s,a){a=a||readingLatest(s);if(!a)return null;return Number(a.readingMonths)-ageMonths(s.dob,a.date)}
 function readingProgress(s){
@@ -1417,11 +1398,67 @@ function studentEvidenceEnhanced(s){
  return h
 }
 
+
+function hubCard(title,body,target,label){
+ return '<div class="card"><h3>'+esc(title)+'</h3><p class="small muted">'+esc(body)+'</p><button class="btn" onclick="setView(\''+target+'\')">'+esc(label||"Open")+'</button></div>'
+}
+function renderAssessmentHub(){
+ var all=[];currentStudents().forEach(function(s){(s.ealTests||[]).filter(function(t){return t.frameworkAssessment}).forEach(function(t){all.push({s:s,t:t})})});
+ all.sort(function(a,b){return String(b.t.date).localeCompare(String(a.t.date))});
+ var h=pageHead("Assessment Centre","Bell-aligned EAL profiling, reading assessment and progress evidence",roleCanEdit()?'<button class="btn primary" onclick="openDetailedEalAssessment()">+ New EAL assessment</button>':"");
+ h+='<div class="notice privacy" style="margin-bottom:14px"><b>Assessment basis:</b> the main profile uses the five-band UK EAL model: A New to English, B Early Acquisition, C Developing Competence, D Competent and E Fluent. The tasks in this app are original school assessment materials aligned to that framework; they are not copied test items.</div>';
+ h+='<div class="grid three"><div class="card"><h3>Full EAL proficiency assessment</h3><p class="small muted">Assess Listening, Speaking, Reading and Writing separately, record evidence and confirm an A–E best-fit band.</p><button class="btn primary" onclick="openDetailedEalAssessment()">Start assessment</button></div>'+hubCard("Reading ages","Record standardised reading-test results and track reading-age change over time.","reading")+hubCard("Assessment history","Review saved EAL profiles, strand results and evidence over time.","ealtest")+'</div>';
+ h+='<div class="grid two" style="margin-top:14px"><div class="card"><div class="section-title"><h3>Five proficiency bands</h3><a class="small link" href="https://www.bell-foundation.org.uk/resources/eal-assessment-framework/" target="_blank" rel="noopener">Framework reference ↗</a></div>'+Object.keys(ealBandLabels).map(function(k){return '<div class="framework-band"><strong>'+k+'</strong><b>'+esc(ealBandLabels[k])+'</b><span class="small muted">'+esc(ealBandGuidance[k])+'</span></div>'}).join("")+'</div><div class="card"><div class="section-title"><h3>Recent framework assessments</h3><span class="small muted">'+all.length+' saved</span></div>';
+ if(!all.length)h+='<div class="empty">No detailed EAL assessments saved yet.</div>';else all.slice(0,8).forEach(function(x){h+='<div class="priority"><div><b>'+dateText(x.t.date)+' · '+esc(x.s.name)+'</b><span>'+esc(x.t.type)+' · '+esc(ealBandText(x.t.confirmedBand||x.t.suggestedBand))+' · '+esc(x.t.confidence||"")+'</span></div></div>'});
+ h+='</div></div>';
+ h+='<div class="card" style="margin-top:14px"><h3>Assessment principles built in</h3><div class="grid three"><div class="notice"><b>Four skills separately</b><br>Listening, speaking, reading and writing can develop at different rates.</div><div class="notice"><b>Evidence from context</b><br>Record scaffolds, prior schooling and evidence from more than one classroom context.</div><div class="notice"><b>Assessment for teaching</b><br>Results generate editable next-step suggestions rather than treating a band as an end point.</div></div></div>';
+ return h
+}
+function renderSupportHub(){
+ var h=pageHead("Support & Provision","Interventions, classroom strategies, staffing and new-arrival support in one place","");
+ h+='<div class="grid three">'+
+ hubCard("Provision map","Current provision, staff ownership, targets and review dates.","provision")+
+ hubCard("Interventions","Create and review targeted EAL interventions.","interventions")+
+ hubCard("Intervention sessions","Track attendance, focus and minutes of support delivered.","sessions")+
+ hubCard("Support timetable","Plan support slots and identify lesson clashes.","supportplan")+
+ hubCard("Strategy library","Assign practical classroom strategies to pupil profiles.","strategies")+
+ hubCard("Teacher feedback","Collect subject-teacher evidence before reviews.","feedback")+
+ hubCard("First 6 Weeks","Structured onboarding pathway for new arrivals.","sixweeks")+
+ hubCard("Teacher / class view","Concise support information for subject teachers.","teacher")+
+ hubCard("Intervention impact","Review outcome evidence and next steps.","impact")+
+ '</div>';return h
+}
+function renderReviewHub(){
+ var h=pageHead("Reviews & Reports","Reviews, meetings, analysis and reporting grouped together","");
+ h+='<div class="grid three">'+
+ hubCard("Formal reviews","Record termly EAL review outcomes.","reviews")+
+ hubCard("Review meeting workspace","Bring together reading, assessment, targets, interventions and pupil voice.","reviewmeeting")+
+ hubCard("Cohorts & heatmap","Whole-school EAL analysis without ranking pupils.","cohorts")+
+ hubCard("Reports","Generate pupil, parent and termly reports.","reports")+
+ hubCard("SLT / inspection","Anonymised provision and evidence overview.","slt")+
+ hubCard("Calendar & reminders","See reassessments, reviews and actions due.","calendar")+
+ '</div>';return h
+}
+function renderAdminHub(){
+ var h=pageHead("More & Settings","Less-used administration and optional advanced integrations","");
+ h+='<div class="grid three">'+
+ hubCard("Staff tasks","Assign and complete follow-up actions.","tasks")+
+ hubCard("Tools & rollover","Bulk actions, CSV import, leavers and year rollover.","tools")+
+ hubCard("Archive","Find and restore archived pupil records.","archive")+
+ hubCard("Settings & privacy","Branding, intervals, privacy and local backups.","settings")+
+ hubCard("Advanced integrations","Optional central database, staff authentication and MIS sync. Ignore this if Google Drive backup is enough.","integrations")+
+ '</div>';return h
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
  else if(ui.view==="dashboard")html=renderDashboardEnhanced();
  else if(ui.view==="students")html=renderStudentsEnhanced();
+ else if(ui.view==="assessmenthub")html=renderAssessmentHub();
+ else if(ui.view==="supporthub")html=renderSupportHub();
+ else if(ui.view==="reviewhub")html=renderReviewHub();
+ else if(ui.view==="adminhub")html=renderAdminHub();
  else if(ui.view==="reading")html=renderReading();
  else if(ui.view==="assessments")html=renderAssessments();
  else if(ui.view==="interventions")html=renderInterventions();
