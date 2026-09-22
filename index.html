@@ -240,9 +240,9 @@ function renderAssessments(){
 }
 function renderInterventions(){
  var list=[];currentStudents().forEach(function(s){(s.interventions||[]).forEach(function(i){list.push({s:s,i:i})})});
- var h=pageHead("Interventions","Plan support, review impact and record outcomes",roleCanEdit()?'<button class="btn primary" onclick="openIntervention()">+ Start intervention</button>':"");
- h+='<div class="table-wrap"><table><thead><tr><th>Student</th><th>Intervention</th><th>Focus</th><th>Frequency</th><th>Review</th><th>Staff</th><th>Status</th></tr></thead><tbody>';
- list.forEach(function(x){h+='<tr><td><span class="link" onclick="openStudent(\''+x.s.id+'\',\'interventions\')">'+esc(x.s.name)+'</span></td><td>'+esc(x.i.name)+'</td><td>'+esc(x.i.focus)+'</td><td>'+esc(x.i.frequency)+'</td><td>'+dateText(x.i.reviewDate)+'</td><td>'+esc(x.i.staff)+'</td><td>'+badge(x.i.status,x.i.status==="Completed"?"ok":"brand")+'</td></tr>'});
+ var h=pageHead("Interventions","Plan support, open the full implementation plan and monitor effectiveness",roleCanEdit()?'<button class="btn primary" onclick="openIntervention()">+ Start intervention</button><button class="btn" onclick="setView(\'interventionmonitoring\')">Monitoring dashboard</button>':"");
+ h+='<div class="table-wrap"><table><thead><tr><th>Student</th><th>Intervention</th><th>Focus</th><th>Frequency</th><th>Review</th><th>Staff</th><th>Monitoring</th><th>Status</th><th></th></tr></thead><tbody>';
+ list.forEach(function(x){var tr=interventionProgressTrend(x.i);h+='<tr><td><span class="link" onclick="openStudent(\''+x.s.id+'\',\'support\')">'+esc(x.s.name)+'</span></td><td>'+esc(x.i.name)+'</td><td>'+esc(x.i.focus)+'</td><td>'+esc(x.i.frequency)+'</td><td>'+dateText(x.i.reviewDate)+'</td><td>'+esc(x.i.staff)+'</td><td>'+badge(tr.count?tr.count+" check(s)":"Not started",tr.count?"brand":"warn")+'</td><td>'+badge(x.i.status,x.i.status==="Completed"?"ok":"brand")+'</td><td><button class="btn" onclick="openInterventionTracker(\''+x.s.id+'\',\''+x.i.id+'\')">Track</button></td></tr>'});
  return h+'</tbody></table></div>'
 }
 function renderObservations(){
@@ -812,7 +812,7 @@ window.openIntervention=function(id,templateId){
  modal("Start intervention",'<div class="form-grid"><div class="field full"><label>Student</label><select id="iStudent">'+studentOptions(id)+'</select></div><div class="field full"><label>Intervention template</label><select id="iTemplate" onchange="fillInterventionTemplate(this.value)">'+options+'</select></div><div class="field"><label>Intervention</label><input id="iName"></div><div class="field"><label>Focus</label><input id="iFocus"></div><div class="field"><label>Start date</label><input id="iStart" type="date" value="'+today()+'"></div><div class="field"><label>End date</label><input id="iEnd" type="date"></div><div class="field"><label>Review date</label><input id="iReview" type="date"></div><div class="field"><label>Frequency</label><input id="iFreq" placeholder="e.g. 2 × 25 minutes weekly"></div><div class="field"><label>Staff</label><input id="iStaff" value="EAL Team"></div><div class="field full"><label>Baseline</label><textarea id="iBase"></textarea></div><div class="field full"><label>Target</label><textarea id="iTarget"></textarea></div></div>',"Start intervention",function(){
   var s=studentById(val("iStudent"));if(!s||!val("iName"))return toast("Select a student and intervention");
   var tid=val("iTemplate"),tpl=interventionTemplateById(tid);
-  var intervention={id:uid("int"),templateId:tid||"",name:val("iName"),focus:val("iFocus"),startDate:val("iStart"),endDate:val("iEnd"),reviewDate:val("iReview"),frequency:val("iFreq"),staff:val("iStaff"),baseline:val("iBase"),target:val("iTarget"),status:"Active",outcome:"",impactRating:"Not reviewed"};
+  var intervention={id:uid("int"),templateId:tid||"",name:val("iName"),focus:val("iFocus"),startDate:val("iStart"),endDate:val("iEnd"),reviewDate:val("iReview"),frequency:val("iFreq"),staff:val("iStaff"),baseline:val("iBase"),target:val("iTarget"),status:"Active",outcome:"",impactRating:"Not reviewed",progressChecks:[],monitoring:{}};
   s.interventions.push(intervention);
   if(tpl){s.strategies=s.strategies||[];(tpl.strategies||[]).forEach(function(x){if(s.strategies.indexOf(x)<0)s.strategies.push(x)})}
   save("Started intervention "+intervention.name+" for "+s.name);closeModal();render();toast("Intervention saved")
@@ -924,7 +924,12 @@ function ensureEnhancedData(){
   s.workSamples=s.workSamples||[];
   s.writingSamples=s.writingSamples||[];
   s.speakingSamples=s.speakingSamples||[];
-  (s.interventions||[]).forEach(function(i){if(i.impactRating===undefined)i.impactRating="Not reviewed";if(i.outcome===undefined)i.outcome=""});
+  (s.interventions||[]).forEach(function(i){
+   if(i.impactRating===undefined)i.impactRating="Not reviewed";
+   if(i.outcome===undefined)i.outcome="";
+   i.progressChecks=i.progressChecks||[];
+   i.monitoring=i.monitoring||{};
+  });
  })
 }
 function addMonths(dateStr,n){var d=new Date(dateStr+"T00:00:00");if(isNaN(d))return "";d.setMonth(d.getMonth()+Number(n||0));return d.toISOString().slice(0,10)}
@@ -1203,7 +1208,11 @@ function renderImpactEnhanced(){
 function studentInterventionsEnhanced(s){
  var h='<div class="card"><div class="section-title"><h3>Intervention history</h3>'+(roleCanEdit()?'<button class="btn" onclick="openIntervention(\''+s.id+'\')">+ Intervention</button>':"")+'</div>';
  if(!(s.interventions||[]).length)return h+'<div class="empty">No interventions recorded.</div></div>';
- (s.interventions||[]).forEach(function(i){h+='<div class="priority"><div style="flex:1"><b>'+esc(i.name)+' · '+esc(i.focus)+'</b><span>'+esc(i.frequency)+' · '+dateText(i.startDate)+' to '+dateText(i.endDate)+' · Review '+dateText(i.reviewDate)+' · '+esc(i.staff)+'</span><div class="small" style="margin-top:6px"><b>Baseline:</b> '+esc(i.baseline||"—")+' · <b>Target:</b> '+esc(i.target||"—")+'</div><div class="small" style="margin-top:4px"><b>Outcome:</b> '+esc(i.outcome||"Awaiting review")+' · <b>Impact:</b> '+esc(i.impactRating||"Not reviewed")+(i.nextStep?' · <b>Next:</b> '+esc(i.nextStep):"")+'</div></div><div>'+badge(i.status,i.status==="Completed"?"ok":"brand")+(roleCanEdit()?'<div style="margin-top:6px"><button class="btn" onclick="openInterventionReview(\''+s.id+'\',\''+i.id+'\')">Review</button></div>':"")+'</div></div>'});return h+'</div>'
+ (s.interventions||[]).forEach(function(i){
+  var tr=interventionProgressTrend(i);
+  h+='<div class="priority"><div style="flex:1"><b>'+esc(i.name)+' · '+esc(i.focus)+'</b><span>'+esc(i.frequency)+' · '+dateText(i.startDate)+' to '+dateText(i.endDate)+' · Review '+dateText(i.reviewDate)+' · '+esc(i.staff)+'</span><div class="small" style="margin-top:6px"><b>Baseline:</b> '+esc(i.baseline||"—")+' · <b>Target:</b> '+esc(i.target||"—")+'</div><div class="small" style="margin-top:4px"><b>Monitoring:</b> '+tr.count+' check(s) · '+esc(interventionEffectivenessLabel(i))+' · <b>Outcome:</b> '+esc(i.outcome||"Awaiting review")+'</div></div><div>'+badge(i.status,i.status==="Completed"?"ok":"brand")+(roleCanEdit()?'<div class="actions" style="margin-top:6px">'+(i.templateId?'<button class="btn" onclick="openInterventionPlan(\''+i.templateId+'\')">Plan</button>':"")+'<button class="btn primary" onclick="openInterventionTracker(\''+s.id+'\',\''+i.id+'\')">Track</button><button class="btn" onclick="openInterventionReview(\''+s.id+'\',\''+i.id+'\')">Review</button></div>':"")+'</div></div>'
+ });
+ return h+'</div>'
 }
 function studentInterventionProgressVisuals(s){
  var active=(s.interventions||[]).slice().reverse().slice(0,4);
@@ -1802,6 +1811,7 @@ function renderSupportHub(){
  hubCard("First 6 Weeks","Structured onboarding pathway for new arrivals.","sixweeks")+
  hubCard("Teacher / class view","Concise support information for subject teachers.","teacher")+
  hubCard("Intervention impact","Review outcome evidence and next steps.","impact")+
+ hubCard("Intervention monitoring","Weekly progress, delivery, transfer and fidelity tracking.","interventionmonitoring")+
  '</div>';return h
 }
 function renderReviewHub(){
@@ -3294,6 +3304,94 @@ function renderSyncStatus(){
  return h
 }
 
+
+function interventionByIds(studentId,interventionId){
+ var s=studentById(studentId);if(!s)return null;var i=(s.interventions||[]).find(function(x){return x.id===interventionId});return i?{student:s,intervention:i}:null
+}
+function interventionPlanForRecord(i){return i&&i.templateId?interventionPlanByTemplate(i.templateId):null}
+function interventionProgressRows(i){return (i.progressChecks||[]).slice().sort(function(a,b){return String(a.date).localeCompare(String(b.date))})}
+function interventionRatingAverage(x){
+ var vals=["skill","independence","transfer","confidence","fidelity"].map(function(k){return Number(x&&x[k])||0}).filter(function(n){return n>0});
+ return vals.length?vals.reduce(function(a,b){return a+b},0)/vals.length:0
+}
+function interventionProgressTrend(i){
+ var a=interventionProgressRows(i);if(!a.length)return {count:0,start:null,current:null,change:null,attendance:null,fidelity:null};
+ var first=a[0],last=a[a.length-1],start=interventionRatingAverage(first),current=interventionRatingAverage(last);
+ var att=a.map(function(x){return Number(x.sessionAttendance)}).filter(function(n){return isFinite(n)&&n>=0}),fid=a.map(function(x){return Number(x.fidelity)||0}).filter(function(n){return n>0});
+ return {count:a.length,start:start,current:current,change:a.length>1?current-start:null,attendance:att.length?att.reduce(function(n,v){return n+v},0)/att.length:null,fidelity:fid.length?fid.reduce(function(n,v){return n+v},0)/fid.length:null}
+}
+function interventionEffectivenessLabel(i){
+ var t=interventionProgressTrend(i);if(t.count<2)return "Not enough monitoring yet";
+ var last=interventionProgressRows(i).slice(-1)[0]||{},d=Number(t.change||0);
+ if(d>=1&&Number(last.transfer)>=4)return "Strong improving pattern";
+ if(d>=0.4)return "Improving pattern";
+ if(d>-0.25)return "Broadly stable";
+ return "Review / adapt needed"
+}
+function interventionEffectivenessClass(i){
+ var x=interventionEffectivenessLabel(i);return x.indexOf("Strong")===0?"ok":x.indexOf("Improving")===0?"brand":x.indexOf("Review")===0?"warn":""
+}
+function interventionMonitoringBars(check){
+ return [["Target skill",check.skill],["Independence",check.independence],["Classroom transfer",check.transfer],["Pupil confidence",check.confidence],["Implementation fidelity",check.fidelity]].map(function(x){
+  var n=Number(x[1])||0;return '<div class="bar-row"><span>'+esc(x[0])+'</span><div class="track"><div class="fill" style="width:'+Math.max(0,Math.min(100,n*20))+'%"></div></div><b>'+(n?n+"/5":"—")+'</b></div>'
+ }).join("")
+}
+function interventionWeekStatus(i,w){
+ var checks=(i.progressChecks||[]).filter(function(x){return Number(x.week)===Number(w.week)});if(!checks.length)return badge("Not recorded","warn");
+ var latest=checks.slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date))})[0];
+ return badge(latest.activitiesCompleted?"Completed":"In progress",latest.activitiesCompleted?"ok":"brand")
+}
+function interventionTrackerHtml(s,i){
+ var p=interventionPlanForRecord(i),checks=interventionProgressRows(i),trend=interventionProgressTrend(i);
+ var h='<div class="grid four"><div class="card kpi"><small>Monitoring points</small><strong>'+checks.length+'</strong><span>Weekly/checkpoint entries</span></div><div class="card kpi"><small>Latest combined rating</small><strong>'+(trend.current==null?"—":trend.current.toFixed(1)+"/5")+'</strong><span>Skill + independence + transfer + confidence + fidelity</span></div><div class="card kpi"><small>Change</small><strong>'+(trend.change==null?"—":(trend.change>=0?"+":"")+trend.change.toFixed(1))+'</strong><span>From first check</span></div><div class="card kpi"><small>Delivery</small><strong>'+(trend.attendance==null?"—":Math.round(trend.attendance)+"%")+'</strong><span>Average sessions delivered/attended</span></div></div>';
+ h+='<div class="notice privacy" style="margin-top:12px"><b>'+esc(interventionEffectivenessLabel(i))+'</b>. This is a descriptive monitoring indicator, not a causal-effect estimate.</div>';
+ if(p){
+  h+='<div class="card" style="margin-top:12px"><div class="section-title"><h3>Implementation sequence</h3><button class="btn" onclick="openInterventionPlan(\''+i.templateId+'\')">Open full plan</button></div>';
+  (p.weeklyPlan||[]).forEach(function(w){h+='<div class="priority"><div><b>Week '+w.week+' · '+esc(w.focus)+'</b><span>'+esc(w.evidence||"")+'</span></div>'+interventionWeekStatus(i,w)+'</div>'});
+  h+='</div>'
+ }
+ h+='<div class="card" style="margin-top:12px"><div class="section-title"><h3>Progress record</h3><button class="btn primary" onclick="openInterventionProgressCheck(\''+s.id+'\',\''+i.id+'\')">+ Weekly check</button></div>';
+ if(!checks.length)h+='<div class="empty">No monitoring data yet. Start with a baseline/Week 1 check before judging effectiveness.</div>';
+ else checks.slice().reverse().forEach(function(x){h+='<div class="card" style="margin:8px 0"><div class="section-title"><h3>'+dateText(x.date)+' · Week '+esc(x.week||"—")+'</h3>'+badge(interventionRatingAverage(x).toFixed(1)+"/5","brand")+'</div>'+interventionMonitoringBars(x)+'<p class="small"><b>Delivery:</b> '+esc(x.sessionAttendance||0)+'% · <b>Plan activities:</b> '+(x.activitiesCompleted?"substantially completed":"partly completed")+'</p><p class="small"><b>Classroom transfer:</b> '+esc(x.generalisation||"—")+'</p><p class="small muted"><b>Evidence:</b> '+esc(x.evidenceNote||"No evidence note")+'</p>'+(x.nextAdjustment?'<div class="notice"><b>Next adjustment:</b> '+esc(x.nextAdjustment)+'</div>':"")+'</div>'});
+ h+='</div>';
+ if(p)h+='<div class="grid two" style="margin-top:12px"><div class="card"><h3>Specific effectiveness measures</h3>'+(p.measures||[]).map(interventionPlanMeasureHtml).join("")+'</div><div class="card"><h3>Success criteria</h3><ul class="small">'+(p.successCriteria||[]).map(function(x){return '<li>'+esc(x)+'</li>'}).join("")+'</ul></div></div>';
+ return h
+}
+window.openInterventionTracker=function(studentId,interventionId){ui.monitorStudentId=studentId;ui.monitorInterventionId=interventionId;ui.view="interventionmonitor";render()}
+function renderInterventionMonitor(){
+ var obj=interventionByIds(ui.monitorStudentId,ui.monitorInterventionId);
+ if(!obj)return pageHead("Intervention Monitoring","Open an intervention from a pupil profile or the monitoring dashboard","");
+ return pageHead("Intervention Monitoring",obj.student.name+" · "+obj.intervention.name,'<button class="btn" onclick="openStudent(\''+obj.student.id+'\',\'support\')">Back to pupil</button><button class="btn" onclick="openInterventionReview(\''+obj.student.id+'\',\''+obj.intervention.id+'\')">Formal review</button>')+interventionTrackerHtml(obj.student,obj.intervention)
+}
+window.openInterventionProgressCheck=function(studentId,interventionId){
+ var obj=interventionByIds(studentId,interventionId);if(!obj)return;var s=obj.student,i=obj.intervention,p=interventionPlanForRecord(i),checks=interventionProgressRows(i),maxWeeks=(p&&p.weeklyPlan&&p.weeklyPlan.length)||8,nextWeek=Math.min(maxWeeks,Math.max(1,checks.length+1)),weekOptions="";
+ for(var w=1;w<=maxWeeks;w++)weekOptions+='<option value="'+w+'" '+(w===nextWeek?"selected":"")+'>Week '+w+'</option>';
+ var wi=p&&p.weeklyPlan?p.weeklyPlan.find(function(x){return Number(x.week)===nextWeek}):null;
+ var html='<div class="notice"><b>Intervention target:</b> '+esc(i.target||"—")+'<br>Use the same 1–5 ratings each time: 1 = substantial support; 3 = developing/partly independent; 5 = secure/independent in normal classroom use.</div>';
+ html+='<div class="form-grid" style="margin-top:10px"><div class="field"><label>Date</label><input id="ipcDate" type="date" value="'+today()+'"></div><div class="field"><label>Plan week</label><select id="ipcWeek" onchange="refreshInterventionWeekPrompt(\''+studentId+'\',\''+interventionId+'\')">'+weekOptions+'</select></div><div class="field"><label>Sessions delivered/attended %</label><input id="ipcAttendance" type="number" min="0" max="100" value="100"></div><div class="field"><label><input type="checkbox" id="ipcActivities" checked> Planned activities substantially completed</label></div></div>';
+ html+='<div id="ipcWeekPrompt">'+(wi?'<div class="card"><h3>'+esc(wi.focus)+'</h3><ul class="small">'+wi.activities.map(function(x){return '<li>'+esc(x)+'</li>'}).join("")+'</ul><div class="notice"><b>Evidence to record:</b> '+esc(wi.evidence)+'</div></div>':"")+'</div>';
+ html+='<div class="grid five" style="margin-top:10px">'+[["Target skill","ipcSkill"],["Independence","ipcInd"],["Classroom transfer","ipcTransfer"],["Pupil confidence","ipcConfidence"],["Implementation fidelity","ipcFidelity"]].map(function(x){return '<div class="field"><label>'+x[0]+' 1–5</label><select id="'+x[1]+'">'+[1,2,3,4,5].map(function(n){return '<option value="'+n+'" '+(n===3?"selected":"")+'>'+n+'</option>'}).join("")+'</select></div>'}).join("")+'</div>';
+ html+='<div class="form-grid"><div class="field full"><label>Concrete evidence / measure result</label><textarea id="ipcEvidence" placeholder="Record a score, observed example, classwork evidence, prompt level or other measurable result."></textarea></div><div class="field full"><label>Classroom generalisation</label><textarea id="ipcGeneral" placeholder="Where is the skill appearing outside the intervention? Which subject/context?"></textarea></div><div class="field full"><label>Next adjustment</label><textarea id="ipcAdjust" placeholder="Continue as planned, reduce scaffold, reteach, change frequency/grouping, collect more evidence…"></textarea></div></div>';
+ modal("Weekly intervention progress check",html,"Save monitoring",function(){
+  i.progressChecks=i.progressChecks||[];i.progressChecks.push({id:uid("ipc"),date:val("ipcDate"),week:Number(val("ipcWeek"))||1,sessionAttendance:Number(val("ipcAttendance"))||0,activitiesCompleted:document.getElementById("ipcActivities").checked,skill:Number(val("ipcSkill"))||3,independence:Number(val("ipcInd"))||3,transfer:Number(val("ipcTransfer"))||3,confidence:Number(val("ipcConfidence"))||3,fidelity:Number(val("ipcFidelity"))||3,evidenceNote:val("ipcEvidence"),generalisation:val("ipcGeneral"),nextAdjustment:val("ipcAdjust"),staff:ui.role});
+  save("Recorded intervention monitoring for "+s.name+" — "+i.name);closeModal();ui.monitorStudentId=s.id;ui.monitorInterventionId=i.id;ui.view="interventionmonitor";render();toast("Progress check saved")
+ })
+}
+window.refreshInterventionWeekPrompt=function(studentId,interventionId){
+ var obj=interventionByIds(studentId,interventionId),el=document.getElementById("ipcWeekPrompt");if(!obj||!el)return;var p=interventionPlanForRecord(obj.intervention),week=Number(val("ipcWeek")),w=p&&p.weeklyPlan?p.weeklyPlan.find(function(x){return Number(x.week)===week}):null;
+ el.innerHTML=w?'<div class="card"><h3>'+esc(w.focus)+'</h3><ul class="small">'+w.activities.map(function(x){return '<li>'+esc(x)+'</li>'}).join("")+'</ul><div class="notice"><b>Evidence to record:</b> '+esc(w.evidence)+'</div></div>':""
+}
+function renderInterventionMonitoringDashboard(){
+ var rows=[];currentStudents().forEach(function(s){(s.interventions||[]).filter(function(i){return i.status!=="Completed"}).forEach(function(i){rows.push({s:s,i:i,t:interventionProgressTrend(i)})})});
+ var monitored=rows.filter(function(x){return x.t.count>0}).length,improving=rows.filter(function(x){var l=interventionEffectivenessLabel(x.i);return l.indexOf("Improving")===0||l.indexOf("Strong")===0}).length,needs=rows.filter(function(x){return interventionEffectivenessLabel(x.i).indexOf("Review")===0}).length;
+ var h=pageHead("Intervention Monitoring","Weekly delivery, progress, generalisation and implementation quality",roleCanEdit()?'<button class="btn" onclick="setView(\'interventionlibrary\')">Intervention library</button>':"");
+ h+='<div class="grid four"><div class="card kpi"><small>Active interventions</small><strong>'+rows.length+'</strong><span>Current provision</span></div><div class="card kpi"><small>Being monitored</small><strong>'+monitored+'</strong><span>At least one check</span></div><div class="card kpi"><small>Improving pattern</small><strong>'+improving+'</strong><span>Descriptive indicator</span></div><div class="card kpi"><small>Review / adapt</small><strong>'+needs+'</strong><span>Needs staff review</span></div></div>';
+ h+='<div class="notice privacy" style="margin:12px 0">Use the pattern indicator alongside the intervention-specific measure, classroom work, assessment evidence and pupil voice. It does not show that the intervention caused the change.</div>';
+ h+='<div class="table-wrap"><table><thead><tr><th>Pupil</th><th>Intervention</th><th>Checks</th><th>Latest</th><th>Change</th><th>Delivery</th><th>Fidelity</th><th>Pattern</th><th></th></tr></thead><tbody>';
+ rows.forEach(function(x){h+='<tr><td>'+esc(x.s.name)+'</td><td>'+esc(x.i.name)+'</td><td>'+x.t.count+'</td><td>'+(x.t.current==null?"—":x.t.current.toFixed(1)+"/5")+'</td><td>'+(x.t.change==null?"—":(x.t.change>=0?"+":"")+x.t.change.toFixed(1))+'</td><td>'+(x.t.attendance==null?"—":Math.round(x.t.attendance)+"%")+'</td><td>'+(x.t.fidelity==null?"—":x.t.fidelity.toFixed(1)+"/5")+'</td><td>'+badge(interventionEffectivenessLabel(x.i),interventionEffectivenessClass(x.i))+'</td><td><button class="btn" onclick="openInterventionTracker(\''+x.s.id+'\',\''+x.i.id+'\')">Open</button></td></tr>'});
+ return h+'</tbody></table></div>'
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
@@ -3326,6 +3424,8 @@ function render(){
  else if(ui.view==="tasks")html=renderTasks();
  else if(ui.view==="reminders")html=renderReminderCentre();
  else if(ui.view==="impact")html=renderImpactPro();
+ else if(ui.view==="interventionmonitoring")html=renderInterventionMonitoringDashboard();
+ else if(ui.view==="interventionmonitor")html=renderInterventionMonitor();
  else if(ui.view==="sessions")html=renderSessions();
  else if(ui.view==="supportplan")html=renderSupportPlan();
  else if(ui.view==="feedback")html=renderFeedback();
