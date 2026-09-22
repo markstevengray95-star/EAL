@@ -2265,26 +2265,96 @@ function importMappingSelect(field,headers){
  var inferred=inferImportColumn(headers,field);
  return '<div class="field"><label>'+esc(field.label)+'</label><select id="imp_'+field.key+'"><option value="">— Not mapped —</option>'+headers.map(function(h){return '<option value="'+esc(h)+'" '+(h===inferred?"selected":"")+'>'+esc(h)+'</option>'}).join("")+'</select></div>'
 }
+
+function collectStudentImportMapping(){
+ var map={};
+ studentImportFields.forEach(function(f){var el=document.getElementById("imp_"+f.key);map[f.key]=el?el.value:""});
+ return map
+}
+function mappedStudentImportRow(raw,map){
+ var row={};
+ studentImportFields.forEach(function(f){var col=map[f.key];if(col)row[f.key]=raw[col]});
+ row.name=String(row.name||"").trim();
+ row.dob=spreadsheetDateToIso(row.dob);
+ row.admissionDate=spreadsheetDateToIso(row.admissionDate);
+ row.ukEntry=spreadsheetDateToIso(row.ukEntry);
+ return row
+}
+function importStudentFieldChanges(s,row){
+ var labels={externalId:"Student/MIS ID",name:"Name",preferredName:"Preferred name",year:"Year",form:"Form",dob:"DOB",admissionDate:"Admission date",firstLanguage:"First language",otherLanguages:"Other languages",country:"Country",ukEntry:"UK entry",keyStaff:"Key staff",attendancePercent:"Attendance",notes:"Notes"};
+ var changes=[];
+ ["externalId","name","preferredName","year","form","dob","admissionDate","firstLanguage","country","ukEntry","keyStaff","notes"].forEach(function(k){
+  var incoming=row[k];if(incoming===undefined||incoming===null||String(incoming).trim()==="")return;
+  var old=String(s[k]||"").trim(),next=String(incoming).trim();if(old!==next)changes.push(labels[k]+": "+(old||"—")+" → "+next)
+ });
+ if(row.otherLanguages!==undefined&&String(row.otherLanguages).trim()!==""){
+  var oldLang=(s.otherLanguages||[]).join("; "),nextLang=String(row.otherLanguages).split(/[;,]/).map(function(x){return x.trim()}).filter(Boolean).join("; ");
+  if(oldLang!==nextLang)changes.push("Other languages: "+(oldLang||"—")+" → "+nextLang)
+ }
+ if(row.attendancePercent!==undefined&&String(row.attendancePercent).trim()!==""){
+  var oldAtt=String((s.attendance||{}).percent||"").replace("%","").trim(),nextAtt=String(row.attendancePercent).replace("%","").trim();
+  if(oldAtt!==nextAtt)changes.push("Attendance: "+(oldAtt||"—")+" → "+nextAtt)
+ }
+ return changes
+}
+function importStudentRowWarnings(row){
+ var out=[];
+ if(!row.name)out.push("Missing name");
+ if(row.dob){
+  var d=new Date(row.dob+"T12:00:00");if(isNaN(d))out.push("DOB format not recognised");else if(d>new Date())out.push("DOB is in the future")
+ }
+ if(row.admissionDate&&row.dob&&row.admissionDate<row.dob)out.push("Admission date is before DOB");
+ if(row.attendancePercent!==undefined&&String(row.attendancePercent).trim()!==""){
+  var a=Number(String(row.attendancePercent).replace("%",""));if(!isFinite(a)||a<0||a>100)out.push("Attendance must be 0–100")
+ }
+ return out
+}
 window.openStudentImportMapping=function(){
  var imp=pendingStudentImport;if(!imp)return toast("Choose a spreadsheet first");
- var preview=imp.rows.slice(0,5),html='<div class="notice"><b>'+esc(imp.fileName)+'</b> · sheet '+esc(imp.sheetName)+' · '+imp.rows.length+' row(s). Map your spreadsheet columns below. Only mapped fields will be synced.</div><div class="form-grid" style="margin-top:10px">'+studentImportFields.map(function(f){return importMappingSelect(f,imp.headers)}).join("")+'</div>';
+ var preview=imp.rows.slice(0,5);
+ var html='<div class="notice"><b>'+esc(imp.fileName)+'</b> · sheet '+esc(imp.sheetName)+' · '+imp.rows.length+' row(s). Map your spreadsheet columns below. Nothing changes until you review and approve the change preview.</div>';
+ html+='<div class="form-grid" style="margin-top:10px">'+studentImportFields.map(function(f){return importMappingSelect(f,imp.headers)}).join("")+'</div>';
  html+='<label class="priority"><input type="checkbox" id="impUpdateExisting" checked><div><b>Update matching existing pupils</b><span>Matches use Student/MIS ID first, then exact name + DOB. Unmatched rows create new pupil profiles.</span></div></label>';
- html+='<div class="card" style="margin-top:12px"><h3>Preview</h3><div class="table-wrap"><table><thead><tr>'+imp.headers.slice(0,8).map(function(h){return "<th>"+esc(h)+"</th>"}).join("")+'</tr></thead><tbody>'+preview.map(function(r){return "<tr>"+imp.headers.slice(0,8).map(function(h){return "<td>"+esc(r[h])+"</td>"}).join("")+"</tr>"}).join("")+'</tbody></table></div></div>';
- modal("Import students from Excel / CSV",html,"Import & sync",function(){commitStudentSpreadsheetImport()})
+ html+='<div class="card" style="margin-top:12px"><h3>Source preview</h3><div class="table-wrap"><table><thead><tr>'+imp.headers.slice(0,8).map(function(h){return "<th>"+esc(h)+"</th>"}).join("")+'</tr></thead><tbody>'+preview.map(function(r){return "<tr>"+imp.headers.slice(0,8).map(function(h){return "<td>"+esc(r[h])+"</td>"}).join("")+"</tr>"}).join("")+'</tbody></table></div></div>';
+ modal("Import students from Excel / CSV",html,"Preview changes",function(){previewStudentSpreadsheetImport()})
+}
+window.previewStudentSpreadsheetImport=function(){
+ var imp=pendingStudentImport;if(!imp)return;
+ var map=collectStudentImportMapping();if(!map.name)return toast("Map the Full name column before previewing");
+ var updateExisting=!!document.getElementById("impUpdateExisting").checked;
+ var summary={created:0,updated:0,skipped:0,warnings:0,rows:[]};
+ imp.rows.forEach(function(raw,index){
+  var row=mappedStudentImportRow(raw,map),warn=importStudentRowWarnings(row),match=row.name?findStudentImportMatch(row):null,action="",changes=[];
+  if(!row.name){action="Skip";summary.skipped++}
+  else if(match&&updateExisting){changes=importStudentFieldChanges(match,row);if(changes.length){action="Update";summary.updated++}else{action="No change";summary.skipped++}}
+  else if(match&&!updateExisting){action="Skip matched pupil";summary.skipped++}
+  else{action="Create";summary.created++}
+  summary.warnings+=warn.length;
+  summary.rows.push({index:index+2,name:row.name||"(blank)",action:action,matchName:match?match.name:"",changes:changes,warnings:warn})
+ });
+ imp.mapping=map;imp.updateExisting=updateExisting;imp.changePreview=summary;
+ var html='<div class="grid four"><div class="card kpi"><small>Create</small><strong>'+summary.created+'</strong><span>new pupil profiles</span></div><div class="card kpi"><small>Update</small><strong>'+summary.updated+'</strong><span>existing pupils</span></div><div class="card kpi"><small>Skip / unchanged</small><strong>'+summary.skipped+'</strong><span>no write needed</span></div><div class="card kpi"><small>Warnings</small><strong>'+summary.warnings+'</strong><span>review before applying</span></div></div>';
+ html+='<div class="notice" style="margin-top:12px"><b>Review before applying.</b> This preview is calculated from the current pupil register. A restore point will be created automatically when you apply the changes.</div>';
+ html+='<div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Row</th><th>Pupil</th><th>Action</th><th>Changes / warnings</th></tr></thead><tbody>';
+ summary.rows.slice(0,100).forEach(function(x){
+  var detail=x.changes.slice(0,5).join(" · ");if(x.changes.length>5)detail+=" · +"+(x.changes.length-5)+" more";
+  if(x.warnings.length)detail+=(detail?" · ":"")+"⚠ "+x.warnings.join("; ");
+  html+='<tr><td>'+x.index+'</td><td>'+esc(x.name)+(x.matchName?'<br><span class="small muted">matches '+esc(x.matchName)+'</span>':"")+'</td><td>'+badge(x.action,x.action==="Create"?"ok":x.action==="Update"?"brand":x.warnings.length?"warn":"")+'</td><td class="small">'+esc(detail||"No field changes")+'</td></tr>'
+ });
+ html+='</tbody></table></div>';
+ if(summary.rows.length>100)html+='<p class="small muted">Showing the first 100 of '+summary.rows.length+' rows.</p>';
+ modal("Review spreadsheet changes",html,"Apply changes",function(){commitStudentSpreadsheetImport()})
 }
 window.commitStudentSpreadsheetImport=function(){
  var imp=pendingStudentImport;if(!imp)return;
- var map={};studentImportFields.forEach(function(f){var el=document.getElementById("imp_"+f.key);map[f.key]=el?el.value:""});
- if(!map.name)return toast("Map the Full name column before importing");
- var updateExisting=document.getElementById("impUpdateExisting").checked,created=0,updated=0,skipped=0;
+ var map=imp.mapping||{},updateExisting=imp.updateExisting!==false;if(!map.name)return toast("Return to mapping and preview the spreadsheet first");
+ var created=0,updated=0,skipped=0;
  createRestorePoint();var restoreId=((state.restorePoints||[])[0]||{}).id||"";
  imp.rows.forEach(function(raw){
-  var row={};studentImportFields.forEach(function(f){var col=map[f.key];if(col)row[f.key]=raw[col]});
-  row.name=String(row.name||"").trim();if(!row.name){skipped++;return}
-  row.dob=spreadsheetDateToIso(row.dob);row.admissionDate=spreadsheetDateToIso(row.admissionDate);row.ukEntry=spreadsheetDateToIso(row.ukEntry);
+  var row=mappedStudentImportRow(raw,map);if(!row.name){skipped++;return}
   var match=findStudentImportMatch(row);
-  if(match&&updateExisting){applyImportedStudentData(match,row);updated++}
-  else if(match&&!updateExisting){skipped++}
+  if(match&&updateExisting){var changes=importStudentFieldChanges(match,row);if(changes.length){applyImportedStudentData(match,row);updated++}else skipped++}
+  else if(match&&!updateExisting)skipped++;
   else{state.students.push(emptyStudentFromImport(row));created++}
  });
  state.importHistory=state.importHistory||[];
@@ -2292,6 +2362,7 @@ window.commitStudentSpreadsheetImport=function(){
  state.importHistory=state.importHistory.slice(0,30);
  ensureEnhancedData();save("Spreadsheet sync: "+created+" created, "+updated+" updated, "+skipped+" skipped");pendingStudentImport=null;closeModal();setView("students");toast(created+" created · "+updated+" updated · "+skipped+" skipped")
 }
+
 window.downloadStudentImportTemplate=function(){
  if(!window.XLSX)return toast("Excel library is still loading. Try again in a moment.");
  var headers=["Student ID","Name","Preferred Name","DOB","Year","Form","Admission Date","First Language","Other Languages","Country","UK Entry","Key Staff","Attendance %","Notes"];
