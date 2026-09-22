@@ -560,6 +560,12 @@ function ensureEnhancedData(){
  state.interventionSessions=state.interventionSessions||[];
  state.supportTimetable=state.supportTimetable||[];
  state.feedbackRequests=state.feedbackRequests||[];
+ state.importHistory=state.importHistory||[];
+ state.assessmentCycles=state.assessmentCycles||[];
+ state.interventionGroups=state.interventionGroups||[];
+ state.studentPortalCodes=state.studentPortalCodes||[];
+ state.termReportCycles=state.termReportCycles||[];
+ state.syncQueue=state.syncQueue||[];
  state.testSessions=state.testSessions||[];
  state.licensedTests=state.licensedTests||[];
  state.directDrive=state.directDrive||{clientId:"",status:"Not connected",folderId:"",folderName:"EAL Progress Hub",backupFileId:"",lastSync:"",autoSync:true};
@@ -1482,6 +1488,7 @@ function renderAdminHub(){
  h+='<div class="grid three">'+
  hubCard("Staff tasks","Assign and complete follow-up actions.","tasks")+
  hubCard("Tools & rollover","Bulk actions, CSV import, leavers and year rollover.","tools")+
+ hubCard("Data & bulk tools","Bulk assessment, duplicate checking, import history and reassessment planning.","datatools")+
  hubCard("Archive","Find and restore archived pupil records.","archive")+
  hubCard("Settings & privacy","Branding, intervals, privacy and local backups.","settings")+
  hubCard("Advanced integrations","Optional central database, staff authentication and MIS sync. Ignore this if Google Drive backup is enough.","integrations")+
@@ -2249,7 +2256,7 @@ window.commitStudentSpreadsheetImport=function(){
  var map={};studentImportFields.forEach(function(f){var el=document.getElementById("imp_"+f.key);map[f.key]=el?el.value:""});
  if(!map.name)return toast("Map the Full name column before importing");
  var updateExisting=document.getElementById("impUpdateExisting").checked,created=0,updated=0,skipped=0;
- createRestorePoint();
+ createRestorePoint();var restoreId=((state.restorePoints||[])[0]||{}).id||"";
  imp.rows.forEach(function(raw){
   var row={};studentImportFields.forEach(function(f){var col=map[f.key];if(col)row[f.key]=raw[col]});
   row.name=String(row.name||"").trim();if(!row.name){skipped++;return}
@@ -2259,6 +2266,9 @@ window.commitStudentSpreadsheetImport=function(){
   else if(match&&!updateExisting){skipped++}
   else{state.students.push(emptyStudentFromImport(row));created++}
  });
+ state.importHistory=state.importHistory||[];
+ state.importHistory.unshift({id:uid("import"),date:new Date().toISOString(),fileName:imp.fileName||"Spreadsheet",sheetName:imp.sheetName||"",rows:imp.rows.length,created:created,updated:updated,skipped:skipped,restorePointId:restoreId,mapping:map});
+ state.importHistory=state.importHistory.slice(0,30);
  ensureEnhancedData();save("Spreadsheet sync: "+created+" created, "+updated+" updated, "+skipped+" skipped");pendingStudentImport=null;closeModal();setView("students");toast(created+" created · "+updated+" updated · "+skipped+" skipped")
 }
 window.downloadStudentImportTemplate=function(){
@@ -2266,6 +2276,81 @@ window.downloadStudentImportTemplate=function(){
  var headers=["Student ID","Name","Preferred Name","DOB","Year","Form","Admission Date","First Language","Other Languages","Country","UK Entry","Key Staff","Attendance %","Notes"];
  var example=["12345","Example Student","Example","2013-05-12","Year 8","8A","2026-09-01","Arabic","English; French","Jordan","2024-09-01","EAL Team","96.5",""];
  var ws=XLSX.utils.aoa_to_sheet([headers,example]),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Students");XLSX.writeFile(wb,"EAL_Student_Import_Template.xlsx")
+}
+
+
+function assessmentAgeDays(date){if(!date)return 9999;return Math.floor((new Date(today()+"T12:00:00")-new Date(date+"T12:00:00"))/86400000)}
+function latestEalEvidenceDate(s){
+ var dates=[];(s.assessments||[]).forEach(function(x){if(x.date)dates.push(x.date)});(s.ealTests||[]).forEach(function(x){if(x.date)dates.push(x.date)});
+ return dates.sort().reverse()[0]||""
+}
+function reassessmentRecommendation(s){
+ var e=latestEalEvidenceDate(s),r=readingLatest(s),reasons=[];
+ if(!e)reasons.push("No EAL baseline/profile");
+ else if(assessmentAgeDays(e)>=120)reasons.push("EAL evidence over 4 months old");
+ if(!r)reasons.push("No reading assessment");
+ else if(monthsBetween(r.date,today())>=Number(state.settings.readingIntervalMonths||3))reasons.push("Reading reassessment due");
+ if(reviewDue(s))reasons.push("Formal review due");
+ if((s.interventions||[]).some(function(i){return i.status!=="Completed"&&i.reviewDate&&i.reviewDate<=today()}))reasons.push("Intervention review due");
+ return reasons
+}
+function detectDuplicateStudents(){
+ var ss=currentStudents(),pairs=[],seen=new Set();
+ for(var i=0;i<ss.length;i++)for(var j=i+1;j<ss.length;j++){
+  var a=ss[i],b=ss[j],reason="";
+  if(a.externalId&&b.externalId&&String(a.externalId).trim()===String(b.externalId).trim())reason="Same Student/MIS ID";
+  else if(a.name&&b.name&&a.dob&&b.dob&&normaliseImportHeader(a.name)===normaliseImportHeader(b.name)&&a.dob===b.dob)reason="Same name + DOB";
+  else if(a.dob&&b.dob&&a.dob===b.dob&&String(a.name||"").split(" ").slice(-1)[0].toLowerCase()===String(b.name||"").split(" ").slice(-1)[0].toLowerCase())reason="Same DOB + surname";
+  if(reason){var key=[a.id,b.id].sort().join("|");if(!seen.has(key)){seen.add(key);pairs.push({a:a,b:b,reason:reason})}}
+ }
+ return pairs
+}
+window.openDuplicateChecker=function(){
+ var pairs=detectDuplicateStudents(),html='<div class="notice">Possible duplicates are flagged for staff review only. Nothing is merged automatically.</div>';
+ if(!pairs.length)html+='<div class="empty">No likely duplicate pupil records found.</div>';
+ else html+='<div class="table-wrap"><table><thead><tr><th>Record 1</th><th>Record 2</th><th>Reason</th></tr></thead><tbody>'+pairs.map(function(p){return '<tr><td><span class="link" onclick="closeModal();openStudent(\''+p.a.id+'\')">'+esc(p.a.name)+'</span><br><span class="small">'+esc(p.a.year+" · "+p.a.form+" · "+p.a.dob)+'</span></td><td><span class="link" onclick="closeModal();openStudent(\''+p.b.id+'\')">'+esc(p.b.name)+'</span><br><span class="small">'+esc(p.b.year+" · "+p.b.form+" · "+p.b.dob)+'</span></td><td>'+badge(p.reason,"warn")+'</td></tr>'}).join("")+'</tbody></table></div>';
+ document.getElementById("modalTitle").textContent="Duplicate pupil checker";document.getElementById("modalBody").innerHTML=html;document.getElementById("modalFoot").innerHTML='<button class="btn" onclick="closeModal()">Close</button>';document.getElementById("modal").showModal()
+}
+window.openBulkAssessment=function(){
+ var years=["All"].concat(Array.from(new Set(currentStudents().map(function(s){return s.year}).filter(Boolean))).sort());
+ modal("Bulk assessment entry",'<div class="form-grid"><div class="field"><label>Cohort</label><select id="bulkAssessYear">'+years.map(function(y){return "<option>"+esc(y)+"</option>"}).join("")+'</select></div><div class="field"><label>Entry type</label><select id="bulkAssessType"><option value="eal">EAL 4-skill profile</option><option value="reading">Reading age</option></select></div><div class="field"><label>Date</label><input id="bulkAssessDate" type="date" value="'+today()+'"></div><div class="field"><label>Assessor</label><input id="bulkAssessAssessor" value="EAL Team"></div></div>',"Open entry grid",function(){var y=val("bulkAssessYear"),t=val("bulkAssessType"),d=val("bulkAssessDate"),a=val("bulkAssessAssessor");closeModal();openBulkAssessmentGrid(y,t,d,a)})
+}
+window.openBulkAssessmentGrid=function(year,type,date,assessor){
+ var ss=currentStudents().filter(function(s){return year==="All"||s.year===year});
+ if(!ss.length)return toast("No pupils in that cohort");
+ var html='<div class="notice">'+esc(year)+' · '+esc(date)+' · '+ss.length+' pupil(s). Leave a row blank to skip it.</div><div class="table-wrap"><table><thead>';
+ if(type==="eal")html+='<tr><th>Pupil</th><th>Listening</th><th>Speaking</th><th>Reading</th><th>Writing</th></tr></thead><tbody>'+ss.map(function(s){return '<tr><td>'+esc(s.name)+'</td>'+coreSkills.map(function(k){var cur=Number((s.proficiency||{})[k])||2;return '<td><select id="ba_'+s.id+'_'+k+'"><option value="">Skip</option>'+[1,2,3,4,5].map(function(n){return '<option value="'+n+'" '+(cur===n?"selected":"")+'>'+n+'</option>'}).join("")+'</select></td>'}).join("")+'</tr>'}).join("");
+ else html+='<tr><th>Pupil</th><th>Years</th><th>Months</th><th>Standard score</th></tr></thead><tbody>'+ss.map(function(s){return '<tr><td>'+esc(s.name)+'</td><td><input id="br_y_'+s.id+'" type="number" min="4" max="25" style="width:74px"></td><td><input id="br_m_'+s.id+'" type="number" min="0" max="11" style="width:70px"></td><td><input id="br_s_'+s.id+'" type="number" style="width:80px"></td></tr>'}).join("");
+ html+='</tbody></table></div>';
+ modal(type==="eal"?"Bulk EAL profile entry":"Bulk reading-age entry",html,"Save bulk entries",function(){
+  var count=0;
+  ss.forEach(function(s){
+   if(type==="eal"){
+    var values={},has=false;coreSkills.forEach(function(k){var v=val("ba_"+s.id+"_"+k);if(v!==""){values[k]=Number(v);has=true}});
+    if(has){var sk=Object.assign({},s.proficiency||{});coreSkills.forEach(function(k){if(values[k])sk[k]=values[k]});s.proficiency=sk;s.assessments=s.assessments||[];s.assessments.push({id:uid("ass"),date:date,skills:Object.assign({},sk),assessor:assessor,notes:"Bulk EAL profile entry"});count++}
+   }else{
+    var yrs=Number(val("br_y_"+s.id)),mos=Number(val("br_m_"+s.id)||0);if(yrs){s.readingAssessments=s.readingAssessments||[];s.readingAssessments.push({id:uid("read"),date:date,test:"Bulk reading assessment",readingMonths:yrs*12+mos,standardScore:val("br_s_"+s.id),rawScore:"",assessor:assessor,notes:"Bulk entry"});count++}
+   }
+  });
+  save("Bulk assessment entry for "+count+" pupils");closeModal();render();toast(count+" pupil assessment(s) saved")
+ })
+}
+function renderDataTools(){
+ var dup=detectDuplicateStudents(),ss=currentStudents(),due=ss.filter(function(s){return reassessmentRecommendation(s).length}).length,avg=ss.length?Math.round(ss.reduce(function(n,s){return n+completenessScore(s)},0)/ss.length):0;
+ var h=pageHead("Data & Bulk Tools","Fast cohort entry, data quality, import history and reassessment planning",roleCanEdit()?'<button class="btn primary" onclick="openBulkAssessment()">Bulk assessment</button><button class="btn" onclick="openStudentSpreadsheetImport()">Import Excel / CSV</button>':"");
+ h+='<div class="grid four"><div class="card kpi"><small>Pupils</small><strong>'+ss.length+'</strong><span>Current register</span></div><div class="card kpi"><small>Average completeness</small><strong>'+avg+'%</strong><span>Profile data</span></div><div class="card kpi"><small>Reassessment prompts</small><strong>'+due+'</strong><span>Needs staff review</span></div><div class="card kpi"><small>Possible duplicates</small><strong>'+dup.length+'</strong><span>Review before merging</span></div></div>';
+ h+='<div class="grid three" style="margin-top:14px"><div class="card"><h3>Bulk assessment entry</h3><p class="small muted">Enter 4-skill EAL profiles or reading ages for a whole cohort from one grid.</p><button class="btn primary" onclick="openBulkAssessment()">Open bulk entry</button></div><div class="card"><h3>Duplicate checker</h3><p class="small muted">Checks MIS ID, name + DOB and same DOB + surname.</p><button class="btn" onclick="openDuplicateChecker()">Check '+dup.length+' pair(s)</button></div><div class="card"><h3>Excel re-sync</h3><p class="small muted">Re-upload the latest spreadsheet; matching pupils are updated rather than duplicated.</p><button class="btn" onclick="openStudentSpreadsheetImport()">Import / sync</button></div></div>';
+ h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Assessment freshness & recommendations</h3><button class="btn" onclick="setView(\'calendar\')">Calendar</button></div><div class="table-wrap"><table><thead><tr><th>Pupil</th><th>Latest EAL evidence</th><th>Latest reading</th><th>Recommended action</th></tr></thead><tbody>'+ss.map(function(s){var rec=reassessmentRecommendation(s);return '<tr><td><span class="link" onclick="openStudent(\''+s.id+'\',\'assessment\')">'+esc(s.name)+'</span></td><td>'+dateText(latestEalEvidenceDate(s))+'</td><td>'+dateText((readingLatest(s)||{}).date)+'</td><td>'+(rec.length?rec.map(function(x){return badge(x,"warn")}).join(" "):badge("Evidence current","ok"))+'</td></tr>'}).join("")+'</tbody></table></div></div>';
+ var imports=state.importHistory||[];
+ h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Import history</h3><span class="small muted">'+imports.length+' recorded sync(s)</span></div>';
+ if(!imports.length)h+='<div class="empty">No Excel/CSV imports recorded yet.</div>';else h+='<div class="table-wrap"><table><thead><tr><th>Date</th><th>File</th><th>Rows</th><th>Created</th><th>Updated</th><th>Skipped</th><th>Rollback</th></tr></thead><tbody>'+imports.map(function(x){return '<tr><td>'+new Date(x.date).toLocaleString("en-GB")+'</td><td>'+esc(x.fileName||"Spreadsheet")+'</td><td>'+x.rows+'</td><td>'+x.created+'</td><td>'+x.updated+'</td><td>'+x.skipped+'</td><td>'+(x.restorePointId?'<button class="btn" onclick="restoreImport(\''+x.id+'\')">Rollback</button>':"—")+'</td></tr>'}).join("")+'</tbody></table></div>';
+ h+='</div>';return h
+}
+window.restoreImport=function(importId){
+ var item=(state.importHistory||[]).find(function(x){return x.id===importId});if(!item)return;
+ var p=(state.restorePoints||[]).find(function(x){return x.id===item.restorePointId});if(!p)return toast("That restore point is no longer available");
+ if(!confirm("Rollback the pupil data to before this spreadsheet import?"))return;
+ var d=JSON.parse(p.data);state.settings=d.settings;state.students=d.students;state.archive=d.archive||[];state.tasks=d.tasks||[];state.staffAccounts=d.staffAccounts||[];ensureEnhancedData();save("Rolled back spreadsheet import "+(item.fileName||""));render();toast("Import rollback complete")
 }
 
 function render(){
@@ -2303,6 +2388,7 @@ function render(){
  else if(ui.view==="reports")html=renderReportsEnhanced();
  else if(ui.view==="slt")html=renderSlt();
  else if(ui.view==="tools")html=renderToolsEnhanced();
+ else if(ui.view==="datatools")html=renderDataTools();
  else if(ui.view==="integrations")html=renderIntegrations();
  else if(ui.view==="archive")html=renderArchive();
  else if(ui.view==="settings")html=renderSettingsEnhanced();
