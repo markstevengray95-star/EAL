@@ -1480,6 +1480,7 @@ function renderSupportHub(){
  hubCard("Support timetable","Plan support slots and identify lesson clashes.","supportplan")+
  hubCard("Strategy library","Assign practical classroom strategies to pupil profiles.","strategies")+
  hubCard("Teacher feedback","Collect subject-teacher evidence before reviews.","feedback")+
+ hubCard("Teacher feedback links","Share short classroom-feedback forms with subject teachers.","feedbacklinks")+
  hubCard("First 6 Weeks","Structured onboarding pathway for new arrivals.","sixweeks")+
  hubCard("Teacher / class view","Concise support information for subject teachers.","teacher")+
  hubCard("Intervention impact","Review outcome evidence and next steps.","impact")+
@@ -2609,6 +2610,49 @@ window.openSelfCodePicker=function(){
  modal("Create pupil self-assessment",'<div class="field"><label>Student</label><select id="selfPick">'+studentOptions()+'</select></div>',"Create code",function(){var id=val("selfPick");closeModal();createStudentSelfAssessmentCode(id)})
 }
 
+
+function ensureFeedbackShareCode(id){
+ var x=(state.feedbackRequests||[]).find(function(a){return a.id===id});
+ if(!x)return null;
+ if(!x.shareCode){x.shareCode=makePortalCode();save("Created teacher feedback share code")}
+ return x
+}
+window.openTeacherFeedbackShare=function(id){
+ var x=ensureFeedbackShareCode(id);if(!x)return;
+ var url=location.origin+location.pathname+"?view=teacherfeedbackform&feedback="+encodeURIComponent(x.shareCode);
+ ui.lastTeacherFeedbackUrl=url;
+ modal("Teacher feedback link",'<div class="field"><label>Share this link with the subject teacher</label><input id="teacherFeedbackShareUrl" readonly></div><button class="btn" onclick="copyTeacherFeedbackShare()">Copy link</button><div class="notice" style="margin-top:10px">Cross-device submission requires shared central data. With local/Drive-only mode, use the same browser/device or record the response manually.</div>',"Close",function(){closeModal()});
+ var el=document.getElementById("teacherFeedbackShareUrl");if(el)el.value=url
+}
+window.copyTeacherFeedbackShare=function(){
+ var v=ui.lastTeacherFeedbackUrl||"";
+ if(!v)return;
+ if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(v).then(function(){toast("Feedback link copied")}).catch(function(){prompt("Copy this link",v)});
+ else prompt("Copy this link",v)
+}
+function renderTeacherFeedbackLinks(){
+ var rows=(state.feedbackRequests||[]).slice().sort(function(a,b){return String(b.requestedDate).localeCompare(String(a.requestedDate))});
+ var h=pageHead("Teacher Feedback Links","Share a quick classroom-feedback form with subject teachers",roleCanEdit()?'<button class="btn primary" onclick="openFeedbackRequest()">+ New feedback request</button>':"");
+ h+='<div class="notice privacy" style="margin-bottom:12px">Links work across devices when the shared central-data setup is enabled. In local/Drive-only mode, use the same browser/device or enter the response manually.</div>';
+ if(!rows.length)return h+'<div class="empty">No feedback requests yet.</div>';
+ h+='<div class="table-wrap"><table><thead><tr><th>Pupil</th><th>Subject</th><th>Teacher</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+ rows.forEach(function(x){var s=studentById(x.studentId);h+='<tr><td>'+esc(s?s.name:"Unknown")+'</td><td>'+esc(x.subject||"")+'</td><td>'+esc(x.teacher||"")+'</td><td>'+badge(x.status||"Requested",x.status==="Completed"?"ok":"warn")+'</td><td><button class="btn" onclick="openTeacherFeedbackShare(\''+x.id+'\')">Share link</button><button class="btn" onclick="openFeedbackResponse(\''+x.id+'\')">Enter response</button></td></tr>'});
+ return h+'</tbody></table></div>'
+}
+function renderTeacherFeedbackForm(){
+ var q=new URLSearchParams(location.search),code=q.get("feedback")||"";
+ var x=(state.feedbackRequests||[]).find(function(a){return a.shareCode===code}),s=x&&studentById(x.studentId);
+ if(!x||!s)return '<div class="card empty">This feedback link is not available in the current data source.</div>';
+ var h=pageHead("Subject teacher feedback",s.name+" · "+x.subject,"");
+ h+='<div class="card" style="max-width:760px;margin:auto"><p class="small">'+esc(x.prompt||"Please provide concise classroom evidence.")+'</p><div class="form-grid"><div class="field full"><label>Strength observed</label><textarea id="tfStrength">'+esc(x.strength||"")+'</textarea></div><div class="field full"><label>Language barrier / need</label><textarea id="tfNeed">'+esc(x.need||"")+'</textarea></div><div class="field full"><label>Support that helps</label><textarea id="tfSupport">'+esc(x.support||"")+'</textarea></div><div class="field full"><label>Additional comment</label><textarea id="tfComment">'+esc(x.comment||"")+'</textarea></div></div><button class="btn primary" onclick="submitTeacherFeedbackLink(\''+x.id+'\')">Submit feedback</button></div>';
+ return h
+}
+window.submitTeacherFeedbackLink=function(id){
+ var x=(state.feedbackRequests||[]).find(function(a){return a.id===id});if(!x)return;
+ x.status="Completed";x.strength=val("tfStrength");x.need=val("tfNeed");x.support=val("tfSupport");x.comment=val("tfComment");x.completedDate=today();save("Teacher feedback submitted via quick link");
+ document.getElementById("content").innerHTML='<div class="card" style="max-width:560px;margin:60px auto;text-align:center"><h2>Feedback saved</h2><p>Thank you.</p></div>'
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
@@ -2643,6 +2687,8 @@ function render(){
  else if(ui.view==="sessions")html=renderSessions();
  else if(ui.view==="supportplan")html=renderSupportPlan();
  else if(ui.view==="feedback")html=renderFeedback();
+ else if(ui.view==="feedbacklinks")html=renderTeacherFeedbackLinks();
+ else if(ui.view==="teacherfeedbackform")html=renderTeacherFeedbackForm();
  else if(ui.view==="sixweeks")html=renderSixWeeks();
  else if(ui.view==="ealtest")html=renderEalTestPro();
  else if(ui.view==="cohorts")html=renderCohortsEnhanced();
