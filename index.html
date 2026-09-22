@@ -1642,6 +1642,68 @@ var builtInStudentTests=[
   ]
  }
 ];
+
+if(!builtInStudentTests.some(function(t){return t.id==="school-eal-full-2"})){
+ builtInStudentTests.push({
+  id:"school-eal-full-2",name:"Full EAL School Assessment — Form B",
+  description:"Second original full assessment for repeat testing without reusing Form A.",timeMinutes:60,objectiveMax:40,writingMax:20,speakingMax:20,
+  sections:[
+   {id:"b_listening1",title:"Listening 1",kind:"listening",instructions:"Listen to the passage, then answer the questions. You may play it twice.",passage:"The school library is trialling a quiet study booking system. Pupils can reserve a table for twenty-five minutes during lunch. Bookings open each morning at eight o'clock and students may make only one reservation per day. The librarian explained that the system is intended to reduce arguments about space and help pupils who need a calm place to work. After one month, the library team will compare booking numbers with pupil feedback before deciding whether to continue.",questions:[
+    {q:"How long is each booking?",o:["15 minutes","20 minutes","25 minutes","30 minutes"],a:2,marks:1},
+    {q:"When do bookings open?",o:["At 8:00 each morning","At lunchtime","The night before","After school"],a:0,marks:1},
+    {q:"How many reservations may a pupil make each day?",o:["One","Two","Three","Unlimited"],a:0,marks:1},
+    {q:"What is one purpose of the system?",o:["To shorten lunch","To reduce arguments about space","To replace lessons","To close the library"],a:1,marks:1},
+    {q:"What will staff do after one month?",o:["Remove every table","Compare booking data with pupil feedback","Charge pupils to enter","Open only in the morning"],a:1,marks:1}
+   ]},
+   {id:"b_listening2",title:"Listening 2",kind:"listening",instructions:"Listen to the passage, then answer the questions. You may play it twice.",passage:"During a geography project, pupils compared temperatures in three parts of the school grounds. The shaded courtyard stayed coolest throughout the afternoon, while the paved sports area became warmest after two o'clock. The pupils noticed that measurements changed quickly when clouds covered the sun. Their teacher reminded them to keep the thermometer at the same height each time and to repeat measurements because consistent methods make comparisons more reliable.",questions:[
+    {q:"Which area stayed coolest?",o:["The sports area","The shaded courtyard","The car park","The classroom"],a:1,marks:1},
+    {q:"When was the sports area warmest?",o:["Before school","At midday","After two o'clock","In the evening"],a:2,marks:1},
+    {q:"What affected the measurements quickly?",o:["Cloud cover","Noise","Wind direction only","Pupil numbers"],a:0,marks:1},
+    {q:"What should remain the same each time?",o:["The pupil","The thermometer height","The cloud cover","The location of the sun"],a:1,marks:1},
+    {q:"Why repeat measurements?",o:["To use more paper","To make comparisons more reliable","To make the project longer","To change the conclusion"],a:1,marks:1}
+   ]},
+   {id:"b_reading1",title:"Reading 1",kind:"reading",passage:"School clubs can help pupils develop interests that do not always fit inside normal lesson time. A robotics club, for example, may combine programming, design and teamwork. However, simply offering clubs does not guarantee equal participation. Some pupils may have transport difficulties, caring responsibilities or limited confidence joining an unfamiliar group. Schools can improve access by varying meeting times, explaining clearly what beginners will do and actively inviting pupils who might not volunteer themselves.",questions:[
+    {q:"What is the main idea?",o:["Clubs are a waste of time","Clubs are useful, but access must be considered","Robotics is the only useful club","All pupils already join clubs"],a:1,marks:1},
+    {q:"Which barrier is mentioned?",o:["Too many textbooks","Transport difficulties","No school buildings","Too many teachers"],a:1,marks:1},
+    {q:"What could help beginners?",o:["Clear explanations of what they will do","Harder entry tests","Shorter lunch","Fewer activities"],a:0,marks:1},
+    {q:"Why might some pupils not volunteer?",o:["They may lack confidence","They dislike every subject","They cannot read","They have no interests"],a:0,marks:1},
+    {q:"Which title fits best?",o:["Making school clubs more accessible","Why lessons should end","Building robots at home","The history of clubs"],a:0,marks:1}
+   ]},
+   {id:"b_reading2",title:"Reading 2",kind:"reading",passage:"A reliable conclusion depends on more than getting the same result twice. Scientists also consider whether the method actually measures what it is supposed to measure. A test can be repeatable but still poorly designed. For instance, if a survey asks leading questions, repeated answers may be consistent while the conclusions remain biased. Good investigation therefore requires both consistent procedures and careful choices about what evidence is collected.",questions:[
+    {q:"What is the main point?",o:["Repeating a test always proves it is valid","Reliable conclusions need consistency and good design","Surveys are never useful","Scientists should avoid evidence"],a:1,marks:1},
+    {q:"What problem can leading questions cause?",o:["Faster results","Biased conclusions","More equipment","Higher temperatures"],a:1,marks:1},
+    {q:"What does 'consistent' most nearly mean here?",o:["Done in a similar way each time","Very expensive","Unexpected","Impossible"],a:0,marks:1},
+    {q:"Which statement is true?",o:["Repeatability alone guarantees a good conclusion","A repeatable test may still be poorly designed","Evidence is unnecessary","Bias improves reliability"],a:1,marks:1},
+    {q:"What two things does the writer emphasise?",o:["Speed and cost","Consistency and careful evidence choices","Homework and revision","Technology and transport"],a:1,marks:1}
+   ]},
+   {id:"b_language",title:"Academic language",kind:"objective",questions:[
+    {q:"Which command word asks you to reach a reasoned judgement?",o:["Evaluate","Name","State","Label"],a:0,marks:1},
+    {q:"Choose the best connective: 'The method was carefully controlled; ___, the results were more reliable.'",o:["therefore","although","unless","despite"],a:0,marks:1},
+    {q:"Which sentence is grammatically correct?",o:["The data shows two patterns.","The data show two patterns.","The data showing two patterns.","The data is show patterns."],a:1,marks:1},
+    {q:"What does 'summarise' mean?",o:["Give the main points briefly","Copy every detail","Give only your opinion","Draw a diagram"],a:0,marks:1},
+    {q:"Which phrase best introduces a limitation?",o:["One limitation is that…","Everything is perfect because…","I liked it because…","This is definitely true always."],a:0,marks:1},
+    {q:"Choose the correct word: 'The results were ___ different from the prediction.'",o:["noticeable","noticeably","notice","noticing"],a:1,marks:1},
+    {q:"What does 'interpret' mean?",o:["Explain the meaning of information","Copy a title","Measure a ruler","Underline a word"],a:0,marks:1},
+    {q:"Which phrase is most formal?",o:["a considerable increase","a massive bunch more","loads extra","way bigger"],a:0,marks:1},
+    {q:"Choose the best sentence: 'The evidence is limited; ___, further research is needed.'",o:["therefore","because","unless","whereas"],a:0,marks:1},
+    {q:"What does 'relevant' mean?",o:["Directly connected to the question","Colourful","Always numerical","Very long"],a:0,marks:1},
+    {q:"Which command word asks you to give the exact meaning of a term?",o:["Define","Compare","Discuss","Predict"],a:0,marks:1},
+    {q:"Which response is most precise?",o:["The value rose from 4 to 9.","It went up a lot.","Things changed.","It was different somehow."],a:0,marks:1},
+    {q:"Choose the correct form: 'Each pupil ___ a separate result.'",o:["record","records","recording","have record"],a:1,marks:1},
+    {q:"What does 'consequence' mean?",o:["A result or effect","A starting point","A measurement tool","A heading"],a:0,marks:1},
+    {q:"Which sentence opener signals a similarity?",o:["Similarly,","In contrast,","Nevertheless,","Despite this,"],a:0,marks:1},
+    {q:"What does 'analyse' mean?",o:["Examine information in detail and explain relationships","Copy a sentence","Give one word only","Guess"],a:0,marks:1},
+    {q:"Choose the best phrase: 'The conclusion is supported ___ the data.'",o:["by","at","to","from"],a:0,marks:1},
+    {q:"Which is the best evidence sentence?",o:["Table 2 shows a 15% decrease.","I feel it changed.","It looks kind of lower.","Everyone knows it decreased."],a:0,marks:1},
+    {q:"What does 'assumption' mean?",o:["Something accepted as true without complete proof","A measured result","A graph scale","A conclusion supported fully"],a:0,marks:1},
+    {q:"Choose the best academic contrast: 'Group A improved; ___, Group B showed little change.'",o:["however","therefore","because","for example"],a:0,marks:1}
+   ]},
+   {id:"b_writing",title:"Writing",kind:"writing",maxMarks:20,prompt:"Write 180–250 words for a school leader arguing whether one school rule should be changed or kept. Explain the rule, give evidence or examples, consider another point of view and reach a justified conclusion."},
+   {id:"b_speaking",title:"Speaking",kind:"speaking",maxMarks:20,prompt:"Speak for about 2 minutes on this question: Should schools give pupils more choice in how they learn? Give examples, compare different approaches, respond to one follow-up question and justify your opinion."}
+  ]
+ })
+}
+
 function allStudentTests(){return builtInStudentTests.concat(state.licensedTests||[])}
 function testById(id){return allStudentTests().find(function(t){return t.id===id})}
 function makeTestCode(){var n=Math.floor(100000+Math.random()*900000);while((state.testSessions||[]).some(function(s){return s.code===String(n)&&s.status!=="Completed"}))n=Math.floor(100000+Math.random()*900000);return String(n)}
