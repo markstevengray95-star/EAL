@@ -389,7 +389,7 @@ function renderStudent(){
  if(ui.studentTab==="overview")h+=studentOverview(s);
  if(ui.studentTab==="assessment")h+=studentEalEnhanced(s)+studentReading(s)+studentTestHistoryCard(s);
  if(ui.studentTab==="support")h+=studentLearning(s)+studentTargetsEnhanced(s)+studentInterventionsEnhanced(s)+studentSupportExtensions(s);
- if(ui.studentTab==="evidence")h+=studentObservations(s)+studentSubjects(s)+studentVoiceEnhanced(s)+studentFamily(s)+studentContextExtensions(s)+studentEvidenceSamples(s)+studentEvidenceEnhanced(s);
+ if(ui.studentTab==="evidence")h+=studentObservations(s)+studentSubjects(s)+studentVoiceEnhanced(s)+studentFamily(s)+studentContextExtensions(s)+studentEvidenceSamples(s)+studentEvidenceEnhanced(s)+studentDirectDriveEvidence(s);
  if(ui.studentTab==="review")h+=studentReviews(s)+studentPassport(s);
  return h
 }
@@ -1590,6 +1590,7 @@ window.directDriveBackup=async function(silent){
  try{
   var folderId=await ensureDirectDriveFolder(),fileId=d.backupFileId||await createDirectDriveBackupFile(folderId),payload=JSON.stringify(directDriveCleanState(),null,2);
   await directDriveFetch("https://www.googleapis.com/upload/drive/v3/files/"+encodeURIComponent(fileId)+"?uploadType=media",{method:"PATCH",headers:{"Content-Type":"application/json"},body:payload});
+  await createDriveHistorySnapshot(payload);
   d.lastSync=new Date().toISOString();d.status="Connected";localStorage.setItem(STORAGE,JSON.stringify(state));
   if(!silent){render();toast("Backed up to Google Drive")}return true
  }catch(e){if(!silent)toast(e&&e.message?e.message:"Drive backup failed");return false}
@@ -2789,6 +2790,83 @@ function renderReportCycles(){
  return h+'</tbody></table></div>'
 }
 
+
+function ensureDriveState(){
+ var d=driveCfg();d.folderMap=d.folderMap||{};d.backupHistory=d.backupHistory||[];d.lastHistoryDate=d.lastHistoryDate||"";return d
+}
+async function createDriveFolderNamed(name,parentId){
+ var body={name:name,mimeType:"application/vnd.google-apps.folder"};if(parentId)body.parents=[parentId];
+ var res=await directDriveFetch("https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+ return res.json()
+}
+async function ensureDriveSubfolder(key,name,parentId){
+ var d=ensureDriveState();if(d.folderMap[key]){try{await directDriveFetch("https://www.googleapis.com/drive/v3/files/"+encodeURIComponent(d.folderMap[key])+"?fields=id,name");return d.folderMap[key]}catch(e){delete d.folderMap[key]}}
+ var f=await createDriveFolderNamed(name,parentId);d.folderMap[key]=f.id;localStorage.setItem(STORAGE,JSON.stringify(state));return f.id
+}
+async function ensureStudentDriveFolder(s){
+ var root=await ensureDirectDriveFolder(),yearName=s.year||"Unassigned",yearId=await ensureDriveSubfolder("year:"+yearName,yearName,root);
+ var name=(s.name||"Student")+(s.externalId?" — "+s.externalId:""),sid=await ensureDriveSubfolder("student:"+s.id,name,yearId);s.driveFolderId=sid;localStorage.setItem(STORAGE,JSON.stringify(state));return sid
+}
+window.organizeDriveFolders=async function(){
+ if(!directDriveToken)return toast("Connect Google Drive first");
+ try{
+  var ss=currentStudents();for(var i=0;i<ss.length;i++)await ensureStudentDriveFolder(ss[i]);
+  save("Built Google Drive year and pupil folder structure");render();toast("Drive folders created for "+ss.length+" pupil(s)")
+ }catch(e){toast(e&&e.message?e.message:"Could not build Drive folders")}
+}
+async function uploadBlobToStudentDrive(s,blob,fileName,mimeType){
+ var folderId=await ensureStudentDriveFolder(s);
+ var meta=await directDriveFetch("https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:fileName,mimeType:mimeType||blob.type||"application/octet-stream",parents:[folderId]})});
+ var file=await meta.json();
+ await directDriveFetch("https://www.googleapis.com/upload/drive/v3/files/"+encodeURIComponent(file.id)+"?uploadType=media",{method:"PATCH",headers:{"Content-Type":mimeType||blob.type||"application/octet-stream"},body:blob});
+ if(!file.webViewLink){var rr=await directDriveFetch("https://www.googleapis.com/drive/v3/files/"+encodeURIComponent(file.id)+"?fields=id,name,webViewLink");file=await rr.json()}
+ return file
+}
+window.openDirectEvidenceUpload=function(studentId){
+ var s=studentById(studentId);if(!s)return;if(!directDriveToken)return toast("Connect Google Drive first");
+ var input=document.getElementById("fileInput");input.accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.txt,.csv,.xlsx,.mp3,.m4a,.wav,.webm";input.value="";
+ input.onchange=async function(){var file=input.files&&input.files[0];if(!file)return;try{toast("Uploading evidence…");var uploaded=await uploadBlobToStudentDrive(s,file,file.name,file.type);s.evidence=s.evidence||[];s.evidence.push({id:uid("ev"),date:today(),type:"Drive file",title:file.name,storage:"Google Drive",link:uploaded.webViewLink||"",driveFileId:uploaded.id,note:"Uploaded directly from EAL Progress Hub"});save("Uploaded Drive evidence for "+s.name);render();toast("Evidence uploaded to Drive")}catch(e){toast(e&&e.message?e.message:"Evidence upload failed")}};
+ input.click()
+}
+async function createDriveHistorySnapshot(payload){
+ var d=ensureDriveState();if(!directDriveToken||d.lastHistoryDate===today())return;
+ var root=await ensureDirectDriveFolder(),folder=await ensureDriveSubfolder("backup-history","Backup History",root),name="EAL Backup "+new Date().toISOString().replace(/[:.]/g,"-")+".json";
+ var meta=await directDriveFetch("https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink,createdTime",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name,mimeType:"application/json",parents:[folder]})}),file=await meta.json();
+ await directDriveFetch("https://www.googleapis.com/upload/drive/v3/files/"+encodeURIComponent(file.id)+"?uploadType=media",{method:"PATCH",headers:{"Content-Type":"application/json"},body:payload});
+ d.lastHistoryDate=today();d.backupHistory.unshift({id:file.id,name:name,date:new Date().toISOString(),link:file.webViewLink||""});d.backupHistory=d.backupHistory.slice(0,30);localStorage.setItem(STORAGE,JSON.stringify(state))
+}
+function renderDrivePro(){
+ var h=renderDrive(),d=ensureDriveState(),connected=!!directDriveToken&&d.status==="Connected";
+ h+='<div class="grid two" style="margin-top:14px"><div class="card"><div class="section-title"><h3>Automatic folder organisation</h3>'+badge(connected?"Ready":"Connect Drive",connected?"ok":"warn")+'</div><p class="small muted">Creates EAL Progress Hub → Year group → Pupil folders for evidence files.</p><button class="btn primary" onclick="organizeDriveFolders()" '+(connected?"":"disabled")+'>Build / update folders</button></div><div class="card"><div class="section-title"><h3>Backup history</h3><span class="small muted">'+(d.backupHistory||[]).length+' local references</span></div><p class="small muted">The normal live backup is still updated continuously. A dated history snapshot is created automatically at most once per day while Drive sync is active.</p>'+(d.backupHistory||[]).slice(0,5).map(function(x){return '<div class="priority"><div><b>'+new Date(x.date).toLocaleString("en-GB")+'</b><span>'+esc(x.name)+'</span></div>'+(x.link?'<a class="btn" href="'+esc(x.link)+'" target="_blank" rel="noopener">Open</a>':"")+'</div>'}).join("")+'</div></div>';
+ return h
+}
+function studentDirectDriveEvidence(s){
+ var d=ensureDriveState(),connected=!!directDriveToken&&d.status==="Connected",files=(s.evidence||[]).filter(function(x){return x.driveFileId});
+ var h='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Google Drive evidence folder</h3><div class="actions">'+(connected?'<button class="btn primary" onclick="openDirectEvidenceUpload(\''+s.id+'\')">Upload evidence</button><button class="btn" onclick="startSpeakingRecorder(\''+s.id+'\')">Record speaking audio</button>':'<button class="btn" onclick="setView(\'drive\')">Connect Drive</button>')+'</div></div><p class="small muted">Files are organised under the pupil’s year group and pupil folder when using simple Google Drive mode.</p>';
+ h+=files.length?files.slice().reverse().map(function(x){return '<div class="priority"><div><b>'+esc(x.title||"Evidence file")+'</b><span>'+dateText(x.date)+' · '+esc(x.type||"Drive file")+'</span></div>'+(x.link?'<a class="btn" href="'+esc(x.link)+'" target="_blank" rel="noopener">Open</a>':"")+'</div>'}).join(""):'<div class="empty">No directly uploaded Drive evidence yet.</div>';
+ return h+'</div>'
+}
+window.startSpeakingRecorder=async function(studentId){
+ var s=studentById(studentId);if(!s)return;if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return toast("Audio recording is not supported in this browser");
+ try{
+  var stream=await navigator.mediaDevices.getUserMedia({audio:true}),chunks=[],rec=new MediaRecorder(stream);window.__ealSpeakingRecorder={rec:rec,chunks:chunks,stream:stream,studentId:studentId};
+  rec.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data)};
+  rec.onstop=function(){finishSpeakingRecording()};
+  modal("Speaking audio recorder",'<div class="notice">Record a short speaking sample with the pupil’s knowledge and in line with your school’s normal recording/privacy procedures.</div><div id="recordState" class="score" style="text-align:center;margin:20px">Ready</div><div class="actions"><button class="btn primary" onclick="beginSpeakingRecording()">Start recording</button><button class="btn" onclick="stopSpeakingRecording()">Stop & save</button></div>',"Close",function(){if(window.__ealSpeakingRecorder&&window.__ealSpeakingRecorder.rec.state!=="inactive")window.__ealSpeakingRecorder.rec.stop();closeModal()})
+ }catch(e){toast("Microphone permission was not granted")}
+}
+window.beginSpeakingRecording=function(){var r=window.__ealSpeakingRecorder;if(!r||r.rec.state!=="inactive")return;r.rec.start();var el=document.getElementById("recordState");if(el)el.textContent="Recording…"}
+window.stopSpeakingRecording=function(){var r=window.__ealSpeakingRecorder;if(!r||r.rec.state!=="recording")return;r.rec.stop()}
+window.finishSpeakingRecording=async function(){
+ var r=window.__ealSpeakingRecorder;if(!r)return;var s=studentById(r.studentId),blob=new Blob(r.chunks,{type:"audio/webm"});r.stream.getTracks().forEach(function(t){t.stop()});var el=document.getElementById("recordState");if(el)el.textContent="Saving…";
+ try{
+  var link="",fileId="";if(directDriveToken){var up=await uploadBlobToStudentDrive(s,blob,"Speaking Sample "+today()+".webm","audio/webm");link=up.webViewLink||"";fileId=up.id||""}
+  s.speakingSamples=s.speakingSamples||[];s.speakingSamples.push({id:uid("speaking"),date:today(),context:"Recorded speaking sample",interaction:0,fluency:0,vocabulary:0,grammar:0,intelligibility:0,note:"Audio sample recorded; add rubric scores separately.",fileLink:link,driveFileId:fileId});
+  if(fileId){s.evidence=s.evidence||[];s.evidence.push({id:uid("ev"),date:today(),type:"Speaking audio",title:"Speaking Sample "+today()+".webm",storage:"Google Drive",link:link,driveFileId:fileId,note:"Recorded in EAL Progress Hub"})}
+  save("Recorded speaking audio sample for "+s.name);if(el)el.textContent=fileId?"Saved to Drive":"Recorded locally only";render();toast(fileId?"Speaking audio saved to Drive":"Recording saved as sample metadata; connect Drive to retain audio")
+ }catch(e){if(el)el.textContent="Save failed";toast("Could not save speaking recording")}
+}
+
 function render(){
  var c=document.getElementById("content"),html="";
  if(ui.view==="student")html=renderStudent();
@@ -2803,7 +2881,7 @@ function render(){
  else if(ui.view==="supporthub")html=renderSupportHub();
  else if(ui.view==="reviewhub")html=renderReviewHub();
  else if(ui.view==="adminhub")html=renderAdminHub();
- else if(ui.view==="drive")html=renderDrive();
+ else if(ui.view==="drive")html=renderDrivePro();
  else if(ui.view==="reading")html=renderReading();
  else if(ui.view==="assessments")html=renderAssessments();
  else if(ui.view==="interventions")html=renderInterventions();
