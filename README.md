@@ -5,6 +5,8 @@ Whole-school EAL student progress and reading-age tracker for UK schools.
 ## What is included
 - EAL coordinator dashboard and priority alerts
 - Student profiles and searchable EAL register
+- Detailed EAL assessment centre aligned to the UK five-band proficiency structure, with original listening, speaking, reading/viewing and writing tasks
+- Twenty-criterion scoring, teacher-confirmed best-fit bands, evidence confidence, adjustments, next-step targets and printable profiles
 - EAL proficiency tracking across eight language domains
 - Reading-age history, chronological-age comparison and progress-rate calculations
 - Targets, interventions, teacher observations and reviews
@@ -26,6 +28,8 @@ The complete Supabase CLI configuration is in `supabase/config.toml`. Database c
 Real pupil data must only be used after the school-owned services and data-protection controls are configured. Follow `SCHOOL_INTEGRATION_SETUP.md`.
 
 All demo pupils are fictional.
+
+The assessment suite is framework-aligned school material, not an official, standardised or licensed Bell Foundation test. Results should be confirmed through professional judgement and evidence gathered across contexts.
 
 Deployment refresh: GitHub Pages enabled.
 

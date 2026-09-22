@@ -1,4 +1,4 @@
-const CACHE="eal-progress-hub-v11-integrations";
+const CACHE="eal-progress-hub-v12-detailed-assessment";
 const ASSETS=["./","./index.html","./manifest.webmanifest"];
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));

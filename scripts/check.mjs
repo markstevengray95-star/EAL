@@ -16,7 +16,11 @@ const required = [
   "runMisSync",
   "testMisConnection",
   "testStorageConnection",
-  "linkDriveEvidence"
+  "linkDriveEvidence",
+  "openDetailedEalAssessment",
+  "openEalAssessmentResult",
+  "printEalAssessment",
+  "renderDetailedEalTestCentre"
 ];
 for (const name of required) {
   if (!html.includes(name)) throw new Error(`Missing required integration function: ${name}`);
@@ -32,4 +36,3 @@ for (const pattern of forbidden) {
 }
 
 console.log(`Static integration checks passed (${inlineScripts.length} inline script block${inlineScripts.length === 1 ? "" : "s"}).`);
-
