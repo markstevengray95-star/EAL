@@ -388,7 +388,7 @@ function renderStudent(){
  h+='<div class="tabs">'+tabs.map(function(t){return '<button class="tab '+(ui.studentTab===t[0]?"active":"")+'" onclick="ui.studentTab=\''+t[0]+'\';render()">'+t[1]+'</button>'}).join("")+'</div>';
  if(ui.studentTab==="overview")h+=studentOverview(s);
  if(ui.studentTab==="assessment")h+=studentEalEnhanced(s)+studentReading(s)+studentTestHistoryCard(s);
- if(ui.studentTab==="support")h+=studentLearning(s)+studentTargetsEnhanced(s)+studentInterventionsEnhanced(s)+studentSupportExtensions(s);
+ if(ui.studentTab==="support")h+=studentLearning(s)+studentTargetsEnhanced(s)+studentInterventionsEnhanced(s)+studentInterventionProgressVisuals(s)+studentSupportExtensions(s);
  if(ui.studentTab==="evidence")h+=studentObservations(s)+studentSubjects(s)+studentVoiceEnhanced(s)+studentFamily(s)+studentContextExtensions(s)+studentEvidenceSamples(s)+studentEvidenceEnhanced(s)+studentDirectDriveEvidence(s);
  if(ui.studentTab==="review")h+=studentReviews(s)+studentPassport(s);
  return h
@@ -752,7 +752,7 @@ function renderDashboardEnhanced(){
  var h=renderDashboard(),items=calendarItems(),soon=addMonths(today(),1),due=items.filter(function(x){return x.date<=soon}).slice(0,6);
  h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Coordinator morning briefing</h3><span class="small muted">Today and upcoming actions</span></div><div class="grid three"><div><div class="score">'+getPriorities().length+'</div><div class="small muted">priority actions</div></div><div><div class="score">'+currentStudents().filter(readingDue).length+'</div><div class="small muted">reading reassessments due</div></div><div><div class="score">'+(state.tasks||[]).filter(function(t){return t.status!=="Completed"}).length+'</div><div class="small muted">open staff tasks</div></div></div>';
  if(due.length)h+='<div style="margin-top:10px">'+due.map(function(x){return '<div class="priority"><div><b>'+dateText(x.date)+' · '+esc(x.type)+'</b><span>'+esc(x.student?x.student.name:"Whole-school")+'</span></div></div>'}).join("")+'</div>';
- h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Student EAL Tests</h3><span class="badge brand">Forms A & B ready</span></div><div class="grid three"><div><b>Create a test</b><p class="small muted">Generate a six-digit pupil code.</p><button class="btn primary" onclick="setView(\'studenttests\')">Open Student Tests</button></div><div><b>Student entry</b><p class="small muted">Open the pupil code-entry screen.</p><button class="btn" onclick="setView(\'studenttest\')">Enter test code</button></div><div><b>Marking</b><p class="small muted">Finish speaking/writing and print results.</p><button class="btn" onclick="setView(\'testsessions\')">Test sessions</button></div></div></div>';
+ h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Student EAL Tests</h3><span class="badge brand">Forms A–D ready</span></div><div class="grid three"><div><b>Create a test</b><p class="small muted">Generate a six-digit pupil code.</p><button class="btn primary" onclick="setView(\'studenttests\')">Open Student Tests</button></div><div><b>Student entry</b><p class="small muted">Open the pupil code-entry screen.</p><button class="btn" onclick="setView(\'studenttest\')">Enter test code</button></div><div><b>Marking</b><p class="small muted">Finish speaking/writing and print results.</p><button class="btn" onclick="setView(\'testsessions\')">Test sessions</button></div></div></div>';
  return h+'</div>'
 }
 function heatCell(n){var pct=Math.max(0,Math.min(100,Number(n||1)*20));return '<div style="min-width:72px"><div class="track"><div class="fill" style="width:'+pct+'%"></div></div><span class="small">'+Number(n||1)+'/5</span></div>'}
@@ -892,6 +892,11 @@ function studentInterventionsEnhanced(s){
  var h='<div class="card"><div class="section-title"><h3>Intervention history</h3>'+(roleCanEdit()?'<button class="btn" onclick="openIntervention(\''+s.id+'\')">+ Intervention</button>':"")+'</div>';
  if(!(s.interventions||[]).length)return h+'<div class="empty">No interventions recorded.</div></div>';
  (s.interventions||[]).forEach(function(i){h+='<div class="priority"><div style="flex:1"><b>'+esc(i.name)+' · '+esc(i.focus)+'</b><span>'+esc(i.frequency)+' · '+dateText(i.startDate)+' to '+dateText(i.endDate)+' · Review '+dateText(i.reviewDate)+' · '+esc(i.staff)+'</span><div class="small" style="margin-top:6px"><b>Baseline:</b> '+esc(i.baseline||"—")+' · <b>Target:</b> '+esc(i.target||"—")+'</div><div class="small" style="margin-top:4px"><b>Outcome:</b> '+esc(i.outcome||"Awaiting review")+' · <b>Impact:</b> '+esc(i.impactRating||"Not reviewed")+(i.nextStep?' · <b>Next:</b> '+esc(i.nextStep):"")+'</div></div><div>'+badge(i.status,i.status==="Completed"?"ok":"brand")+(roleCanEdit()?'<div style="margin-top:6px"><button class="btn" onclick="openInterventionReview(\''+s.id+'\',\''+i.id+'\')">Review</button></div>':"")+'</div></div>'});return h+'</div>'
+}
+function studentInterventionProgressVisuals(s){
+ var active=(s.interventions||[]).slice().reverse().slice(0,4);
+ if(!active.length)return "";
+ return '<div class="card" style="margin-top:14px"><div class="section-title"><h3>Intervention progress visuals</h3><span class="small muted">Descriptive before/after evidence</span></div>'+active.map(function(i){return '<div class="card" style="margin:8px 0"><b>'+esc(i.name)+'</b>'+interventionProgressVisual(s,i)+'</div>'}).join("")+'<div class="notice">These visuals describe recorded change and do not prove that an intervention caused it.</div></div>'
 }
 function ealTrendTable(s){
  var points=[];
@@ -2540,6 +2545,20 @@ function renderWorkload(){
  h+='<div class="card" style="margin-top:14px"><h3>Clash / withdrawal warnings</h3>'+(clashes.length?clashes.map(function(x){var s=studentById(x.a.studentId);return '<div class="priority"><div><b>'+esc(x.type)+'</b><span>'+esc(s?s.name:"")+" · "+esc(x.a.day+" "+x.a.start+"–"+x.a.end)+(x.a.missedLesson?" · "+esc(x.a.missedLesson):"")+'</span></div>'+badge("Review","warn")+'</div>'}).join(""):'<div class="empty">No support timetable clashes detected.</div>')+'</div>';
  return h
 }
+
+function interventionProgressVisual(s,i){
+ var e=interventionEvidenceSummary(s,i),parts=[];
+ if(e.domainChange!=null){
+  var pct=Math.max(0,Math.min(100,50+e.domainChange*20));
+  parts.push('<div class="bar-row"><span>4-skill change</span><div class="track"><div class="fill" style="width:'+pct+'%"></div></div><b>'+(e.domainChange>=0?"+":"")+e.domainChange.toFixed(2)+'</b></div>')
+ }
+ if(e.readingChange!=null){
+  var rpct=Math.max(0,Math.min(100,50+e.readingChange*2));
+  parts.push('<div class="bar-row"><span>Reading-age change</span><div class="track"><div class="fill" style="width:'+rpct+'%"></div></div><b>'+(e.readingChange>=0?"+":"")+e.readingChange+' mo</b></div>')
+ }
+ return parts.length?parts.join(""):'<div class="small muted">More before/after assessment evidence is needed for a progress visual.</div>'
+}
+
 function renderImpactPro(){
  var h=renderImpactEnhanced();
  h+='<div class="card" style="margin-top:14px"><div class="section-title"><h3>Before / after evidence</h3><span class="small muted">Language profile and reading evidence around intervention start</span></div><div class="table-wrap"><table><thead><tr><th>Pupil</th><th>Intervention</th><th>4-skill profile change</th><th>Reading-age change</th><th>Delivered minutes</th></tr></thead><tbody>';
