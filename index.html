@@ -1402,7 +1402,7 @@ function hubCard(title,body,target,label){
 function renderAssessmentHub(){
  var all=[];currentStudents().forEach(function(s){(s.ealTests||[]).filter(function(t){return t.frameworkAssessment}).forEach(function(t){all.push({s:s,t:t})})});
  all.sort(function(a,b){return String(b.t.date).localeCompare(String(a.t.date))});
- var h=pageHead("Assessment Centre","Bell-aligned EAL profiling, student testing, reading assessment and progress evidence",roleCanEdit()?'<button class="btn primary" onclick="openDetailedEalAssessment()">+ New EAL assessment</button><button class="btn" onclick="openCreateStudentTest()">Create student test</button><button class="btn" onclick="openLicensedTestImport()">Import licensed test</button>':"");
+ var h=pageHead("Assessment Centre","Bell-aligned EAL profiling, student testing, reading assessment and progress evidence",roleCanEdit()?'<button class="btn primary" onclick="openDetailedEalAssessment()">+ New EAL assessment</button><button class="btn" onclick="openCreateStudentTest()">Create student test</button><button class="btn" onclick="openLicensedTestImport()">Import licensed test</button><button class="btn" onclick="openLicensedTestLibrary()">Licensed library</button>':"");
  h+='<div class="notice privacy" style="margin-bottom:14px"><b>Assessment basis:</b> the main profile uses the five-band UK EAL model: A New to English, B Early Acquisition, C Developing Competence, D Competent and E Fluent. The tasks in this app are original school assessment materials aligned to that framework; they are not copied test items.</div>';
  h+='<div class="grid three"><div class="card"><h3>Student Test Mode</h3><p class="small muted">Give a pupil a six-digit code. Listening, reading and academic-language items are auto-marked; speaking and writing are teacher-marked for a final total.</p><div class="actions"><button class="btn primary" onclick="openCreateStudentTest()">Create code</button><button class="btn" onclick="setView(\'studenttest\')">Student entry</button><button class="btn" onclick="setView(\'testsessions\')">Test sessions</button></div></div><div class="card"><h3>Full EAL proficiency assessment</h3><p class="small muted">Assess Listening, Speaking, Reading and Writing separately, record evidence and confirm an A–E best-fit band.</p><button class="btn primary" onclick="openDetailedEalAssessment()">Start assessment</button></div>'+hubCard("Reading ages","Record standardised reading-test results and track reading-age change over time.","reading")+hubCard("Assessment history","Review saved EAL profiles, strand results and evidence over time.","ealtest")+'</div>';
  h+='<div class="grid two" style="margin-top:14px"><div class="card"><div class="section-title"><h3>Five proficiency bands</h3><a class="small link" href="https://www.bell-foundation.org.uk/resources/eal-assessment-framework/" target="_blank" rel="noopener">Framework reference ↗</a></div>'+Object.keys(ealBandLabels).map(function(k){return '<div class="framework-band"><strong>'+k+'</strong><b>'+esc(ealBandLabels[k])+'</b><span class="small muted">'+esc(ealBandGuidance[k])+'</span></div>'}).join("")+'</div><div class="card"><div class="section-title"><h3>Recent framework assessments</h3><span class="small muted">'+all.length+' saved</span></div>';
@@ -1902,6 +1902,55 @@ function renderTestSessionsPro(){
   h+='</div></td></tr>'
  });
  return h+'</tbody></table></div>'
+}
+
+
+function validateLicensedTestObject(t){
+ var errors=[];
+ if(!t||typeof t!=="object")errors.push("Test must be a JSON object");
+ if(!t.name||String(t.name).trim().length<3)errors.push("Test name is required");
+ if(!Array.isArray(t.sections)||!t.sections.length)errors.push("At least one section is required");
+ var ids=new Set();
+ (t.sections||[]).forEach(function(sec,si){
+  if(!sec.id)errors.push("Section "+(si+1)+" needs an id");
+  else if(ids.has(sec.id))errors.push("Section ids must be unique");
+  else ids.add(sec.id);
+  if(["objective","reading","listening","writing","speaking"].indexOf(sec.kind)<0)errors.push("Section "+(si+1)+" has an unsupported kind");
+  if(["objective","reading","listening"].indexOf(sec.kind)>-1){
+   if(!Array.isArray(sec.questions)||!sec.questions.length)errors.push("Section "+(si+1)+" needs questions");
+   (sec.questions||[]).forEach(function(q,qi){
+    if(!q.q)errors.push("Section "+(si+1)+" question "+(qi+1)+" needs text");
+    if(!Array.isArray(q.o)||q.o.length<2)errors.push("Section "+(si+1)+" question "+(qi+1)+" needs at least two options");
+    if(Number(q.a)<0||Number(q.a)>=(q.o||[]).length)errors.push("Section "+(si+1)+" question "+(qi+1)+" has an invalid answer index")
+   })
+  }
+  if((sec.kind==="writing"||sec.kind==="speaking")&&!sec.prompt)errors.push("Section "+(si+1)+" needs a prompt")
+ });
+ return errors
+}
+window.openLicensedTestImport=function(){
+ var template='{"name":"Licensed Test Name","timeMinutes":45,"sections":[{"id":"section1","title":"Section 1","kind":"objective","questions":[{"q":"Question text","o":["A","B","C","D"],"a":0,"marks":1}]},{"id":"writing","title":"Writing","kind":"writing","maxMarks":20,"prompt":"Writing prompt"},{"id":"speaking","title":"Speaking","kind":"speaking","maxMarks":20,"prompt":"Speaking prompt"}]}';
+ var html='<div class="notice privacy"><b>Permission required.</b> Only import content your school is licensed or otherwise permitted to reproduce and administer online.</div><div class="form-grid" style="margin-top:10px"><div class="field"><label>Publisher / owner</label><input id="licensedOwner" placeholder="e.g. Publisher name or school-owned"></div><div class="field"><label>Licence / permission reference</label><input id="licensedReference" placeholder="Contract, licence or written-permission reference"></div><div class="field full"><label><input type="checkbox" id="licensedConfirm"> I confirm the school has permission to reproduce and administer this assessment online.</label></div></div><div class="field" style="margin-top:10px"><label>Test JSON</label><textarea id="licensedTestJson" style="min-height:260px">'+esc(template)+'</textarea></div>';
+ modal("Import licensed test",html,"Validate & import",function(){
+  if(!document.getElementById("licensedConfirm").checked)return toast("Confirm the school's permission before importing");
+  var owner=val("licensedOwner").trim(),ref=val("licensedReference").trim();if(!owner||!ref)return toast("Add the publisher/owner and licence reference");
+  try{
+   var t=JSON.parse(val("licensedTestJson")),errors=validateLicensedTestObject(t);if(errors.length)return toast(errors[0]);
+   t.id=t.id||uid("licensed");t.licensedImport=true;t.importedAt=new Date().toISOString();t.licenceOwner=owner;t.licenceReference=ref;t.licenceConfirmedBy=ui.role;
+   state.licensedTests=state.licensedTests||[];state.licensedTests.push(t);save("Imported licensed test "+t.name+" under recorded permission reference");closeModal();render();toast("Licensed test imported")
+  }catch(e){toast("Invalid test JSON: "+e.message)}
+ })
+}
+window.openLicensedTestLibrary=function(){
+ var tests=state.licensedTests||[],html='<div class="notice">This library contains only tests manually imported by your school. Built-in school-created tests are kept separately.</div>';
+ if(!tests.length)html+='<div class="empty">No licensed tests imported.</div>';
+ else html+='<div class="table-wrap"><table><thead><tr><th>Test</th><th>Owner</th><th>Permission reference</th><th>Imported</th><th></th></tr></thead><tbody>'+tests.map(function(t){return '<tr><td>'+esc(t.name)+'</td><td>'+esc(t.licenceOwner||"—")+'</td><td>'+esc(t.licenceReference||"—")+'</td><td>'+new Date(t.importedAt||Date.now()).toLocaleDateString("en-GB")+'</td><td><button class="btn danger" onclick="removeLicensedTest(\''+t.id+'\')">Remove</button></td></tr>'}).join("")+'</tbody></table></div>';
+ document.getElementById("modalTitle").textContent="Licensed test library";document.getElementById("modalBody").innerHTML=html;document.getElementById("modalFoot").innerHTML='<button class="btn" onclick="closeModal()">Close</button>';document.getElementById("modal").showModal()
+}
+window.removeLicensedTest=function(id){
+ var inUse=(state.testSessions||[]).some(function(s){return s.testId===id&&s.status!=="Cancelled"});if(inUse)return toast("This test is linked to an existing test session");
+ if(!confirm("Remove this imported test from the app?"))return;
+ state.licensedTests=(state.licensedTests||[]).filter(function(t){return t.id!==id});save("Removed imported licensed test");openLicensedTestLibrary()
 }
 
 function render(){
